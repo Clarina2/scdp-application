@@ -1,0 +1,209 @@
+@startuml SCDP_Data_Model
+
+hide circle
+skinparam linetype ortho
+skinparam entity {
+    BackgroundColor White
+    BorderColor Black
+}
+
+title SCDP Stock Information Platform - Data Model
+
+' =========================================================
+' APPLICATION / AUTHENTICATION
+' =========================================================
+
+entity "ROLE" as ROLE {
+    * id : UUID <<PK>>
+    --
+    * name : VARCHAR(50) <<UNIQUE>>
+    description : TEXT
+    created_at : TIMESTAMP
+}
+
+entity "USER" as USER {
+    * id : UUID <<PK>>
+    --
+    * role_id : UUID <<FK>>
+    * name : VARCHAR(150)
+    * email : VARCHAR(255) <<UNIQUE>>
+    * password_hash : VARCHAR(255)
+    * is_active : BOOLEAN
+    last_login_at : TIMESTAMP
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+}
+
+ROLE ||--o{ USER : "has"
+
+' =========================================================
+' SCDP-DERIVED STOCK INFORMATION
+' =========================================================
+
+entity "PRODUCT" as PRODUCT {
+    * id : UUID <<PK>>
+    --
+    * source_id : VARCHAR(100) <<UNIQUE>>
+    code : VARCHAR(100)
+    name : VARCHAR(255)
+    description : TEXT
+    unit : VARCHAR(50)
+    source_created_at : TIMESTAMP
+    source_updated_at : TIMESTAMP
+    synchronized_at : TIMESTAMP
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+}
+
+entity "DEPOT" as DEPOT {
+    * id : UUID <<PK>>
+    --
+    * source_id : VARCHAR(100) <<UNIQUE>>
+    code : VARCHAR(100)
+    name : VARCHAR(255)
+    address : TEXT
+    is_active : BOOLEAN
+    source_created_at : TIMESTAMP
+    source_updated_at : TIMESTAMP
+    synchronized_at : TIMESTAMP
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+}
+
+entity "STOCK" as STOCK {
+    * id : UUID <<PK>>
+    --
+    * source_id : VARCHAR(100) <<UNIQUE>>
+    * product_id : UUID <<FK>>
+    * depot_id : UUID <<FK>>
+    quantity : DECIMAL(18,2)
+    unit : VARCHAR(50)
+    status : VARCHAR(50)
+    source_updated_at : TIMESTAMP
+    synchronized_at : TIMESTAMP
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+}
+
+PRODUCT ||--o{ STOCK : "contains"
+DEPOT ||--o{ STOCK : "stores"
+
+entity "STOCK_MOVEMENT" as STOCK_MOVEMENT {
+    * id : UUID <<PK>>
+    --
+    * source_id : VARCHAR(100) <<UNIQUE>>
+    * stock_id : UUID <<FK>>
+    movement_type : VARCHAR(50)
+    quantity : DECIMAL(18,2)
+    movement_date : TIMESTAMP
+    source_location_id : UUID <<FK>>
+    destination_location_id : UUID <<FK>>
+    source_updated_at : TIMESTAMP
+    synchronized_at : TIMESTAMP
+    created_at : TIMESTAMP
+}
+
+STOCK ||--o{ STOCK_MOVEMENT : "has"
+
+DEPOT ||--o{ STOCK_MOVEMENT : "source location"
+DEPOT ||--o{ STOCK_MOVEMENT : "destination location"
+
+' =========================================================
+' SYNCHRONIZATION
+' =========================================================
+
+entity "SYNCHRONIZATION_RUN" as SYNC_RUN {
+    * id : UUID <<PK>>
+    --
+    started_at : TIMESTAMP
+    completed_at : TIMESTAMP
+    * status : VARCHAR(30)
+    records_read : INTEGER
+    records_inserted : INTEGER
+    records_updated : INTEGER
+    records_failed : INTEGER
+    error_message : TEXT
+    triggered_by : UUID <<FK>>
+    created_at : TIMESTAMP
+}
+
+entity "SYNCHRONIZATION_TABLE" as SYNC_TABLE {
+    * id : UUID <<PK>>
+    --
+    * synchronization_run_id : UUID <<FK>>
+    * source_table : VARCHAR(255)
+    * target_table : VARCHAR(255)
+    status : VARCHAR(30)
+    records_read : INTEGER
+    records_inserted : INTEGER
+    records_updated : INTEGER
+    records_failed : INTEGER
+    started_at : TIMESTAMP
+    completed_at : TIMESTAMP
+    error_message : TEXT
+}
+
+SYNC_RUN ||--o{ SYNC_TABLE : "contains"
+
+USER ||--o{ SYNC_RUN : "triggers"
+
+' =========================================================
+' OPTIONAL AUDIT
+' =========================================================
+
+entity "AUDIT_LOG" as AUDIT_LOG {
+    * id : UUID <<PK>>
+    --
+    user_id : UUID <<FK>>
+    action : VARCHAR(100)
+    entity_type : VARCHAR(100)
+    entity_id : VARCHAR(100)
+    metadata : TEXT
+    ip_address : VARCHAR(50)
+    user_agent : TEXT
+    created_at : TIMESTAMP
+}
+
+USER ||--o{ AUDIT_LOG : "performs"
+
+' =========================================================
+' NOTES
+' =========================================================
+
+note right of PRODUCT
+  SCDP-derived entity.
+  Exact fields must be validated
+  against the real SCDP schema.
+end note
+
+note right of DEPOT
+  SCDP-derived entity.
+  Exact fields must be validated
+  against the real SCDP schema.
+end note
+
+note right of STOCK
+  SCDP-derived entity.
+  source_id preserves the
+  authoritative SCDP identifier.
+end note
+
+note right of STOCK_MOVEMENT
+  Optional.
+  Include only if movement data
+  exists in the SCDP source.
+end note
+
+note bottom of SYNC_RUN
+  Application-owned entity.
+  Tracks one complete
+  synchronization execution.
+end note
+
+note bottom of SYNC_TABLE
+  Application-owned entity.
+  Tracks synchronization results
+  for each source table.
+end note
+
+@enduml

@@ -1,0 +1,375 @@
+{
+  "info": {
+    "_postman_id": "scdp-backend-api-collection",
+    "name": "SCDP Stock Information Platform API",
+    "description": "Complete API collection for the SCDP Stock Information Platform backend.\n\nBase URL: http://localhost:3000/api/v1\n\nAuthentication: Use the Login endpoint to get a JWT token, then set it as Bearer token in other requests. The collection auto-captures the token via the Test script on the Login request.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "marketerId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    const token = body.data?.accessToken || body.accessToken;",
+                  "    if (token) {",
+                  "        pm.collectionVariables.set('authToken', token);",
+                  "        console.log('Auth token captured:', token.substring(0, 20) + '...');",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@scdp.com\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Authenticate with admin credentials. The JWT token is automatically captured and stored in the `authToken` collection variable."
+          }
+        },
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Returns the currently authenticated user's profile."
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            },
+            "description": "Stateless logout endpoint (client should discard the token)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Marketer Management",
+      "item": [
+        {
+          "name": "Create Marketer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    const id = body.data?.id || body.id;",
+                  "    if (id) {",
+                  "        pm.collectionVariables.set('marketerId', id);",
+                  "        console.log('Marketer ID captured:', id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jane Marketer\",\n  \"email\": \"jane.marketer@scdp.com\",\n  \"password\": \"SecurePass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/marketers",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "marketers"]
+            },
+            "description": "Create a new marketer user. Admin only."
+          }
+        },
+        {
+          "name": "List Marketers",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/marketers?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "marketers"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "Get paginated list of all marketer users. Admin only."
+          }
+        },
+        {
+          "name": "Update Marketer Status (Deactivate)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/marketers/{{marketerId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "marketers", "{{marketerId}}", "status"]
+            },
+            "description": "Deactivate a marketer. Change `isActive` to `true` to reactivate."
+          }
+        },
+        {
+          "name": "Update Marketer Status (Activate)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/marketers/{{marketerId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "marketers", "{{marketerId}}", "status"]
+            },
+            "description": "Reactivate a previously deactivated marketer."
+          }
+        },
+        {
+          "name": "Delete Marketer",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/marketers/{{marketerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "marketers", "{{marketerId}}"]
+            },
+            "description": "Permanently delete a marketer user. Admin only."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Stock",
+      "item": [
+        {
+          "name": "List Stock Items",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/stock?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["stock"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "productCode", "value": "", "disabled": true },
+                { "key": "depotCode", "value": "", "disabled": true },
+                { "key": "locationCode", "value": "", "disabled": true },
+                { "key": "status", "value": "", "disabled": true },
+                { "key": "search", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Get paginated list of stock items. Supports filtering by productCode, depotCode, locationCode, status and full-text search on productName/depotName."
+          }
+        },
+        {
+          "name": "List Stock Items (with search)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/stock?search=steel&page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["stock"],
+              "query": [
+                { "key": "search", "value": "steel" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "Search stock items by product name or depot name."
+          }
+        },
+        {
+          "name": "Get Stock Item by SCDP ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/stock/STOCK_001",
+              "host": ["{{baseUrl}}"],
+              "path": ["stock", "STOCK_001"]
+            },
+            "description": "Get a specific stock item by its SCDP source ID."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Synchronization",
+      "item": [
+        {
+          "name": "Trigger Manual Sync",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sync/trigger",
+              "host": ["{{baseUrl}}"],
+              "path": ["sync", "trigger"]
+            },
+            "description": "Manually trigger a synchronization run from SCDP source to application database. Admin only."
+          }
+        },
+        {
+          "name": "Get Sync History",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sync/history?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["sync", "history"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "description": "Get paginated sync history records. Admin only."
+          }
+        },
+        {
+          "name": "Get Sync Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sync/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["sync", "status"]
+            },
+            "description": "Get the current sync configuration and status (mock mode, batch size, etc.)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Checks",
+      "item": [
+        {
+          "name": "General Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Check if the API is running. No authentication required."
+          }
+        },
+        {
+          "name": "Database Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/health/database",
+              "host": ["{{baseUrl}}"],
+              "path": ["health", "database"]
+            },
+            "description": "Check the application PostgreSQL database connectivity."
+          }
+        },
+        {
+          "name": "SCDP Source Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/health/scdp",
+              "host": ["{{baseUrl}}"],
+              "path": ["health", "scdp"]
+            },
+            "description": "Check connectivity to the SCDP source database. Returns 'unconfigured' status when SCDP credentials are not set."
+          }
+        }
+      ]
+    }
+  ]
+}
