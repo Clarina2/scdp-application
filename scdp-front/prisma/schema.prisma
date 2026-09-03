@@ -1,0 +1,268 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  MARKETER
+}
+
+enum SyncStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+  PARTIAL
+}
+
+enum MarketerApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum OtpType {
+  ACCOUNT_VERIFICATION
+  PASSWORD_RESET
+}
+
+model AppRole {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  users       User[]
+
+  @@index([name])
+  @@map("roles")
+}
+
+model User {
+  id           String       @id @default(cuid())
+  roleId       String?      @map("role_id")
+  role         Role         @default(MARKETER)
+  name         String
+  email        String       @unique
+  passwordHash String       @map("password_hash")
+  isActive     Boolean      @default(true) @map("is_active")
+  lastLoginAt  DateTime?    @map("last_login_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  appRole      AppRole?     @relation(fields: [roleId], references: [id])
+  auditLogs    AuditLog[]
+  syncRuns     SyncHistory[]
+
+  @@index([email])
+  @@index([roleId])
+  @@index([isActive])
+  @@map("users")
+}
+
+model Product {
+  id              String    @id @default(cuid())
+  sourceId        String    @unique @map("source_id")
+  code            String?   @map("code")
+  name            String?   @map("name")
+  description     String?   @map("description")
+  unit            String?   @map("unit")
+  sourceCreatedAt DateTime? @map("source_created_at")
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  synchronizedAt  DateTime? @map("synchronized_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  stock           StockItem[]
+
+  @@index([code])
+  @@index([name])
+  @@index([sourceId])
+  @@map("products")
+}
+
+model Depot {
+  id              String    @id @default(cuid())
+  sourceId        String    @unique @map("source_id")
+  code            String?   @map("code")
+  name            String?   @map("name")
+  address         String?   @map("address")
+  isActive        Boolean?  @default(true) @map("is_active")
+  sourceCreatedAt DateTime? @map("source_created_at")
+  sourceUpdatedAt DateTime? @map("source_updated_at")
+  synchronizedAt  DateTime? @map("synchronized_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  stock           StockItem[]
+
+  @@index([code])
+  @@index([name])
+  @@index([sourceId])
+  @@map("depots")
+}
+
+model StockItem {
+  id                String          @id @default(cuid())
+  sourceId          String          @unique @map("source_id")
+  productId         String?         @map("product_id")
+  depotId           String?         @map("depot_id")
+  scdpId            String?         @unique @map("scdp_id")
+  productCode       String?         @map("product_code")
+  productName       String?         @map("product_name")
+  depotCode         String?         @map("depot_code")
+  depotName         String?         @map("depot_name")
+  regionCode        String?         @map("region_code")
+  regionName        String?         @map("region_name")
+  locationCode      String?         @map("location_code")
+  availableQuantity Decimal?        @map("available_quantity") @db.Decimal(18, 4)
+  quantity          Decimal?        @db.Decimal(18, 4)
+  unitOfMeasure     String?         @map("unit_of_measure")
+  unit              String?         @map("unit")
+  depositDate       DateTime?       @map("deposit_date")
+  removalDate       DateTime?       @map("removal_date")
+  status            String?         @default("ACTIVE")
+  sourceUpdatedAt   DateTime?       @map("source_updated_at")
+  synchronizedAt    DateTime?       @map("synchronized_at")
+  lastSyncedAt      DateTime?       @map("last_synced_at")
+  rawData           Json?           @map("raw_data")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+  product           Product?        @relation(fields: [productId], references: [id])
+  depot             Depot?          @relation(fields: [depotId], references: [id])
+  stockMovements    StockMovement[]
+
+  @@index([productCode])
+  @@index([depotCode])
+  @@index([regionCode])
+  @@index([locationCode])
+  @@index([status])
+  @@index([sourceUpdatedAt])
+  @@index([lastSyncedAt])
+  @@map("stock")
+}
+
+model StockMovement {
+  id                    String    @id @default(cuid())
+  sourceId              String    @unique @map("source_id")
+  stockId               String    @map("stock_id")
+  movementType          String?   @map("movement_type")
+  quantity              Decimal?  @db.Decimal(18, 4)
+  movementDate          DateTime? @map("movement_date")
+  sourceLocationId      String?   @map("source_location_id")
+  destinationLocationId String?   @map("destination_location_id")
+  sourceUpdatedAt       DateTime? @map("source_updated_at")
+  synchronizedAt        DateTime? @map("synchronized_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  stock                 StockItem @relation(fields: [stockId], references: [id])
+
+  @@index([stockId])
+  @@index([movementType])
+  @@index([movementDate])
+  @@map("stock_movements")
+}
+
+model SyncHistory {
+  id                  String    @id @default(cuid())
+  tableName           String    @map("table_name")
+  startedAt           DateTime  @default(now()) @map("started_at")
+  completedAt         DateTime? @map("completed_at")
+  status              SyncStatus @default(RUNNING)
+  recordsRead         Int       @default(0) @map("records_read")
+  recordsInserted     Int       @default(0) @map("records_inserted")
+  recordsUpdated      Int       @default(0) @map("records_updated")
+  recordsFailed       Int       @default(0) @map("records_failed")
+  errorMessage        String?   @map("error_message")
+  executionDurationMs Int?      @map("execution_duration_ms")
+  triggeredBy         String?   @map("triggered_by")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  user                User?     @relation(fields: [triggeredBy], references: [id])
+
+  @@index([tableName])
+  @@index([status])
+  @@index([startedAt])
+  @@map("synchronization_runs")
+}
+
+model SynchronizationTable {
+  id                   String    @id @default(cuid())
+  synchronizationRunId  String?   @map("synchronization_run_id")
+  sourceTable          String?   @map("source_table")
+  targetTable          String?   @map("target_table")
+  status               String?   @map("status")
+  recordsRead          Int       @default(0) @map("records_read")
+  recordsInserted      Int       @default(0) @map("records_inserted")
+  recordsUpdated       Int       @default(0) @map("records_updated")
+  recordsFailed        Int       @default(0) @map("records_failed")
+  startedAt            DateTime? @map("started_at")
+  completedAt          DateTime? @map("completed_at")
+  errorMessage         String?   @map("error_message")
+
+  @@index([sourceTable])
+  @@index([status])
+  @@map("synchronization_tables")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?  @map("user_id")
+  action     String
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  metadata   Json?
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model MarketerApplication {
+  id              String                    @id @default(cuid())
+  name            String
+  email           String                    @unique
+  companyName     String                    @map("company_name")
+  status          MarketerApplicationStatus @default(PENDING)
+  rejectionReason String?                   @map("rejection_reason")
+  createdAt       DateTime                  @default(now()) @map("created_at")
+  updatedAt       DateTime                  @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([email])
+  @@map("marketer_applications")
+}
+
+model Otp {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  type      OtpType  @default(ACCOUNT_VERIFICATION)
+  expiresAt DateTime @map("expires_at")
+  attempts  Int      @default(0)
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([email, type])
+  @@index([email])
+  @@map("otps")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  role      Role?
+  title     String
+  message   String
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([role])
+  @@index([isRead])
+  @@map("notifications")
+}
