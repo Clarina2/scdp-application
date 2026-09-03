@@ -44,25 +44,40 @@ async def get_history(
     skip = (page - 1) * limit
     items, total = await sync_service.get_history(skip, limit)
     
-    total_pages = (total + limit - 1) // limit
+    total_pages = (total + limit - 1) // limit if limit > 0 else 1
     
-    return {
-        "items": [
-            {
+    formatted_items = []
+    for item in items:
+        if isinstance(item, dict):
+            formatted_items.append({
+                "id": item["id"],
+                "startedAt": item["started_at"],
+                "completedAt": item["completed_at"],
+                "status": item["status"],
+                "recordsRead": item["records_read"],
+                "recordsInserted": item["records_inserted"],
+                "recordsUpdated": item["records_updated"],
+                "recordsFailed": item["records_failed"],
+                "errorMessage": item["error_message"],
+                "tables": item.get("tables", [])
+            })
+        else:
+            formatted_items.append({
                 "id": item.id,
-                "tableName": item.table_name,
+                "tableName": getattr(item, "table_name", ""),
                 "startedAt": item.started_at,
                 "completedAt": item.completed_at,
-                "status": item.status.value,
+                "status": getattr(item.status, "value", str(item.status)),
                 "recordsRead": item.records_read,
                 "recordsInserted": item.records_inserted,
                 "recordsUpdated": item.records_updated,
                 "recordsFailed": item.records_failed,
                 "errorMessage": item.error_message,
-                "executionDurationMs": item.execution_duration_ms
-            }
-            for item in items
-        ],
+                "executionDurationMs": getattr(item, "execution_duration_ms", None)
+            })
+
+    return {
+        "items": formatted_items,
         "meta": {
             "total": total,
             "page": page,

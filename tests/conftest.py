@@ -8,6 +8,7 @@ import pytest
 import bcrypt
 from typing import AsyncGenerator
 from fastapi.testclient import TestClient
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -25,6 +26,14 @@ test_engine = create_async_engine(
     connect_args={"check_same_thread": False},
     poolclass=StaticPool,
 )
+
+# Attach in-memory schemas for SQLite
+@event.listens_for(test_engine.sync_engine, "connect")
+def do_connect(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("ATTACH DATABASE ':memory:' AS app;")
+    cursor.execute("ATTACH DATABASE ':memory:' AS scdp;")
+    cursor.close()
 
 TestingSessionLocal = async_sessionmaker(
     test_engine,

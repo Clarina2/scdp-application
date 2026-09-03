@@ -34,7 +34,7 @@ class AuthService:
             raise UnauthorizedException("Invalid credentials")
 
         if not user.is_active:
-            raise UnauthorizedException("Account is deactivated or pending initial activation")
+            raise UnauthorizedException("Account is not active. Please activate your account using the OTP sent to your email.")
 
         if not bcrypt.checkpw(login_dto.password.encode("utf-8"), user.password_hash.encode("utf-8")):
             raise UnauthorizedException("Invalid credentials")
@@ -59,7 +59,7 @@ class AuthService:
         }
 
     async def set_initial_password(self, dto: SetInitialPasswordDto) -> Dict[str, Any]:
-        """Set initial password for newly approved marketer using OTP verification."""
+        """Set initial password for newly created marketer using OTP verification."""
         user = await self.user_service.find_by_email(dto.email)
         if not user:
             raise NotFoundException("No account found for this email address")
@@ -74,22 +74,9 @@ class AuthService:
         # Consume OTP
         await self.otp_service.consume_otp(dto.email, OtpType.ACCOUNT_VERIFICATION)
 
-        payload = {
-            "sub": updated_user.id,
-            "email": updated_user.email,
-            "role": updated_user.role.value,
-        }
-
         return {
             "success": True,
-            "message": "Initial password set up successfully. Account is now active.",
-            "accessToken": create_access_token(payload),
-            "user": {
-                "id": updated_user.id,
-                "name": updated_user.name,
-                "email": updated_user.email,
-                "role": updated_user.role.value,
-            },
+            "message": "Your account has been activated successfully. Please log in using your email and new password.",
         }
 
     async def forgot_password(self, dto: ForgotPasswordDto) -> Dict[str, Any]:
@@ -137,6 +124,28 @@ class AuthService:
             "role": role,
         }
         return {"accessToken": create_access_token(payload)}
+
+    async def change_password(
+        self, user_id: str, old_password: str, new_password: str
+    ) -> Dict[str, Any]:
+        """Change password for authenticated user (requires old password verification)."""
+        user = await self.user_service.find_by_id(user_id)
+        if not user:
+            raise NotFoundException("User not found")
+
+        # Verify old password
+        if not bcrypt.checkpw(
+            old_password.encode("utf-8"), user.password_hash.encode("utf-8")
+        ):
+            raise UnauthorizedException("Incorrect old password")
+
+        # Update password
+        await self.user_service.update_password(user_id, new_password)
+
+        return {
+            "success": True,
+            "message": "Password changed successfully",
+        }
 
     async def logout(self) -> Dict[str, Any]:
         """Stateless logout."""

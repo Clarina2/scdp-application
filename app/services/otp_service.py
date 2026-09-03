@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.otp import Otp, OtpType
 from app.common.exceptions.custom import BadRequestException
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,17 @@ class OtpService:
         await self.db.commit()
 
         logger.info("Generated OTP for %s (%s)", email, otp_type_enum.value)
+
+        # Print OTP to terminal for development only if DEV_SHOW_OTP is enabled
+        if settings.DEV_SHOW_OTP:
+            print(f"\n{'='*60}")
+            print(f"🔐 OTP GENERATED FOR DEVELOPER")
+            print(f"{'='*60}")
+            print(f"Email: {email}")
+            print(f"Type:  {otp_type_enum.value}")
+            print(f"Code:  {code}")
+            print(f"Expires: {expires_at}")
+            print(f"{'='*60}\n")
 
         # Send via email service if available
         if self._email_service:

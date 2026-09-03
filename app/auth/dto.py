@@ -9,33 +9,38 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class LoginDto(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
 
 class SetInitialPasswordDto(BaseModel):
-    email: EmailStr
+    email: str
     code: str
     password: str = Field(..., min_length=8)
 
 
 class ForgotPasswordDto(BaseModel):
-    email: EmailStr
+    email: str
 
 
 class ResetPasswordDto(BaseModel):
     email: EmailStr
     code: str
+    new_password: str
+
+
+class ChangePasswordDto(BaseModel):
+    old_password: str
     new_password: str = Field(..., min_length=8)
 
 
 class SendOtpDto(BaseModel):
-    email: EmailStr
+    email: str
     type: Optional[str] = "ACCOUNT_VERIFICATION"
 
 
 class VerifyOtpDto(BaseModel):
-    email: EmailStr
+    email: str
     code: str
     type: Optional[str] = "ACCOUNT_VERIFICATION"
 

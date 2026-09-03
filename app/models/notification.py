@@ -12,7 +12,7 @@ class Notification(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
     user_id: Mapped[str | None] = mapped_column(String, name="user_id", index=True)
-    role: Mapped[Role | None] = mapped_column(SQLEnum(Role), index=True)
+    role: Mapped[Role | None] = mapped_column(SQLEnum(Role, name="Role", values_callable=lambda x: [e.value for e in x]), index=True)
     title: Mapped[str] = mapped_column(String)
     message: Mapped[str] = mapped_column(String)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, name="is_read", index=True)

@@ -27,6 +27,7 @@ class StockItem(Base):
     region_code: Mapped[Optional[str]] = mapped_column(String, name="region_code", index=True)
     region_name: Mapped[Optional[str]] = mapped_column(String, name="region_name")
     location_code: Mapped[Optional[str]] = mapped_column(String, name="location_code", index=True)
+    distributor_code: Mapped[Optional[str]] = mapped_column(String, name="distributor_code", index=True)
     available_quantity: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 4), name="available_quantity")
     unit_of_measure: Mapped[Optional[str]] = mapped_column(String, name="unit_of_measure")
     deposit_date: Mapped[Optional[datetime]] = mapped_column(DateTime, name="deposit_date", index=True)

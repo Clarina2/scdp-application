@@ -1,6 +1,9 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy import text
 from app.config import settings
 from app.models.base import Base
+from urllib.parse import quote_plus
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -8,32 +11,27 @@ logger = logging.getLogger(__name__)
 
 def build_database_url() -> str:
     """Build database URL from environment variables or explicit DATABASE_URL."""
-    if settings.DATABASE_URL:
-        # Handle prisma+postgres:// prefix and ensure async driver
-        url = settings.DATABASE_URL.replace("prisma+postgres://", "postgresql+asyncpg://")
-        url = url.replace("postgresql://", "postgresql+asyncpg://")
-        return url
-    
-    # Build from individual components
-    host = settings.DATABASE_HOST or "localhost"
+    # Always build from components to avoid URL parsing issues with special characters
+    host = settings.DATABASE_HOST or "127.0.0.1"
     port = settings.DATABASE_PORT or 5432
     name = settings.DATABASE_NAME or "scdp_db"
     user = settings.DATABASE_USER or "postgres"
     password = settings.DATABASE_PASSWORD or ""
     
-    if password:
-        return f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{name}"
+    # URL-encode password to handle special characters like @ and !
+    encoded_password = quote_plus(password) if password else ""
+    
+    if encoded_password:
+        return f"postgresql+asyncpg://{user}:{encoded_password}@{host}:{port}/{name}"
     return f"postgresql+asyncpg://{user}@{host}:{port}/{name}"
 
 
-# Create async engine
 engine = create_async_engine(
     build_database_url(),
     echo=settings.LOG_LEVEL == "debug",
     pool_pre_ping=True,
 )
 
-# Create async session factory
 AsyncSessionLocal = async_sessionmaker(
     engine,
     class_=AsyncSession,
@@ -55,11 +53,27 @@ async def get_db() -> AsyncSession:
 
 
 async def init_db():
-    """Initialize database connection and create tables."""
+    """Initialize database connection, create target schemas, and create tables."""
     try:
         async with engine.begin() as conn:
+            await conn.execute(text("CREATE SCHEMA IF NOT EXISTS app;"))
+            await conn.execute(text("CREATE SCHEMA IF NOT EXISTS scdp;"))
             await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database connection established and tables created")
+            
+            # Ensure fingerprint columns exist on tstsecurite and tstkoutil
+            await conn.execute(text("ALTER TABLE scdp.tstsecurite ADD COLUMN IF NOT EXISTS fingerprint VARCHAR(64);"))
+            await conn.execute(text("ALTER TABLE scdp.tstkoutil ADD COLUMN IF NOT EXISTS fingerprint VARCHAR(64);"))
+            # Ensure otptype enum and otp_type column exist on otps table
+            await conn.execute(text("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'otptype') THEN
+                        CREATE TYPE otptype AS ENUM ('ACCOUNT_VERIFICATION', 'PASSWORD_RESET');
+                    END IF;
+                END $$;
+            """))
+            await conn.execute(text("ALTER TABLE otps ADD COLUMN IF NOT EXISTS otp_type otptype;"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_otps_otp_type ON otps (otp_type);"))
+        logger.info("Database schemas ('app', 'scdp') created and tables initialized.")
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
         raise

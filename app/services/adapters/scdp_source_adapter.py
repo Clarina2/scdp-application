@@ -1,29 +1,20 @@
 """
-SCDP Source Adapter
-===================
-Connects to the real SCDP PostgreSQL replica database to read source records.
-
-This adapter is used when `SYNC_USE_MOCK=false`. It connects to the PostgreSQL
-database that replicates the actual BDGSM source of truth, using the
-`SCDP_DB_*` environment variables.
-
-The adapter is read-only — it never writes to the SCDP source database.
+SCDP Source Adapter (SQL Server BDGSM Master)
+==============================================
+Connects to the SQL Server BDGSM source database to read records.
 
 Configuration (from .env):
-  SCDP_DB_HOST, SCDP_DB_PORT, SCDP_DB_NAME, SCDP_DB_USER, SCDP_DB_PASSWORD
-  SCDP_DB_SCHEMA (default: 'public')
+  SCDP_SOURCE_DB_HOST, SCDP_SOURCE_DB_PORT, SCDP_SOURCE_DB_NAME,
+  SCDP_SOURCE_DB_USER, SCDP_SOURCE_DB_PASSWORD, SCDP_SOURCE_DB_SCHEMA,
+  SCDP_SOURCE_DB_DRIVER
 
-Incremental sync:
-  If `last_synced_at` is provided, the query adds a WHERE clause:
-    WHERE UPDATED_AT > last_synced_at OR updated_at > last_synced_at
-  This allows efficient incremental synchronization.
+The adapter is read-only — it never writes to the SCDP source database.
 """
 
 import logging
+import asyncio
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-
-import asyncpg
 
 from app.config import settings
 from app.services.adapters.source_adapter import SourceAdapter
@@ -33,48 +24,55 @@ logger = logging.getLogger(__name__)
 
 class ScdpSourceAdapter(SourceAdapter):
     """
-    Connects to the PostgreSQL SCDP replica database using asyncpg.
-    Read-only: never writes to the SCDP source.
+    Connects to the SQL Server BDGSM source database via pyodbc / SQLAlchemy.
+    Read-only: strictly reads source tables.
     """
 
     def __init__(self) -> None:
-        self._pool: Optional[asyncpg.Pool] = None
+        self._connected: bool = False
 
     async def connect(self) -> None:
-        """Create asyncpg connection pool to the SCDP source DB."""
+        """Verify connection capability to SQL Server BDGSM."""
         if not settings.scdp_is_configured:
             logger.warning(
-                "ScdpSourceAdapter: SCDP credentials not configured. "
-                "Running in unconfigured state — reads will return empty."
+                "ScdpSourceAdapter: SQL Server source credentials not configured. "
+                "Reads will return empty."
             )
             return
 
         try:
-            self._pool = await asyncpg.create_pool(
-                host=settings.SCDP_DB_HOST,
-                port=settings.SCDP_DB_PORT,
-                database=settings.SCDP_DB_NAME,
-                user=settings.SCDP_DB_USER,
-                password=settings.SCDP_DB_PASSWORD,
-                min_size=1,
-                max_size=5,
-            )
+            # Test connection in background thread to avoid blocking loop
+            await asyncio.to_thread(self._test_connection)
+            self._connected = True
             logger.info(
-                "ScdpSourceAdapter: connected to %s:%s/%s",
-                settings.SCDP_DB_HOST,
-                settings.SCDP_DB_PORT,
-                settings.SCDP_DB_NAME,
+                "ScdpSourceAdapter: connected to SQL Server %s:%s/%s (schema: %s)",
+                settings.source_host,
+                settings.source_port,
+                settings.source_name,
+                settings.source_schema,
             )
         except Exception as exc:
             logger.error("ScdpSourceAdapter: failed to connect — %s", exc)
+            self._connected = False
             raise
 
+    def _test_connection() -> None:
+        import pyodbc
+        conn_str = (
+            f"DRIVER={{{settings.SCDP_SOURCE_DB_DRIVER}}};"
+            f"SERVER={settings.source_host},{settings.source_port};"
+            f"DATABASE={settings.source_name};"
+            f"UID={settings.source_user};"
+            f"PWD={settings.source_password};"
+            f"TrustServerCertificate=yes;"
+        )
+        conn = pyodbc.connect(conn_str, timeout=10)
+        conn.close()
+
     async def disconnect(self) -> None:
-        """Close the asyncpg connection pool."""
-        if self._pool:
-            await self._pool.close()
-            self._pool = None
-            logger.info("ScdpSourceAdapter: disconnected")
+        """Disconnect from SQL Server source."""
+        self._connected = False
+        logger.info("ScdpSourceAdapter: disconnected")
 
     async def read_records(
         self,
@@ -82,34 +80,37 @@ class ScdpSourceAdapter(SourceAdapter):
         batch_size: int,
         last_synced_at: Optional[datetime] = None,
     ) -> List[Dict[str, Any]]:
-        """Read records from the SCDP source table. Returns empty list if not connected."""
-        if not settings.scdp_is_configured or not self._pool:
+        """Read records from the SQL Server source table."""
+        if not settings.scdp_is_configured or not self._connected:
             logger.warning("ScdpSourceAdapter: not connected — returning empty record set")
             return []
 
-        schema = settings.SCDP_DB_SCHEMA or "public"
-        full_table = f'"{schema}"."{table_name}"'
+        return await asyncio.to_thread(
+            self._sync_read_records, table_name, batch_size, last_synced_at
+        )
 
-        try:
-            async with self._pool.acquire() as conn:
-                if last_synced_at:
-                    # Incremental: fetch only records updated since last sync
-                    query = (
-                        f'SELECT * FROM {full_table} '
-                        f'WHERE "UPDATED_AT" > $1 OR "updated_at" > $1 '
-                        f'ORDER BY "UPDATED_AT" ASC NULLS LAST '
-                        f'LIMIT $2'
-                    )
-                    rows = await conn.fetch(query, last_synced_at, batch_size)
-                else:
-                    # Full initial load
-                    query = f'SELECT * FROM {full_table} LIMIT $1'
-                    rows = await conn.fetch(query, batch_size)
+    def _sync_read_records(
+        self,
+        table_name: str,
+        batch_size: int,
+        last_synced_at: Optional[datetime] = None,
+    ) -> List[Dict[str, Any]]:
+        import pyodbc
+        schema = settings.source_schema or "dbo"
+        conn_str = (
+            f"DRIVER={{{settings.SCDP_SOURCE_DB_DRIVER}}};"
+            f"SERVER={settings.source_host},{settings.source_port};"
+            f"DATABASE={settings.source_name};"
+            f"UID={settings.source_user};"
+            f"PWD={settings.source_password};"
+            f"TrustServerCertificate=yes;"
+        )
 
-                # Convert asyncpg Record objects to plain dicts
-                return [dict(row) for row in rows]
-        except Exception as exc:
-            logger.error(
-                "ScdpSourceAdapter: error reading from '%s' — %s", table_name, exc
-            )
-            raise
+        query = f"SELECT TOP {batch_size} * FROM [{schema}].[{table_name}]"
+        
+        with pyodbc.connect(conn_str) as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            columns = [column[0] for column in cursor.description]
+            rows = cursor.fetchall()
+            return [dict(zip(columns, row)) for row in rows]

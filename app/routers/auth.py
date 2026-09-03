@@ -24,6 +24,7 @@ from app.auth.dto import (
     SetInitialPasswordDto,
     ForgotPasswordDto,
     ResetPasswordDto,
+    ChangePasswordDto,
     SendOtpDto,
     VerifyOtpDto,
 )
@@ -129,6 +130,21 @@ async def refresh_token(
         current_user.id,
         current_user.email,
         current_user.role.value,
+    )
+
+
+@router.post("/password/change")
+async def change_password(
+    dto: ChangePasswordDto,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change password for authenticated user (requires old password verification)."""
+    auth_service = AuthService(db)
+    return await auth_service.change_password(
+        current_user.id,
+        dto.old_password,
+        dto.new_password,
     )
 
 
