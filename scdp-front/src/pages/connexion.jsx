@@ -1,6 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import logo from "../assets/logo-scdp.png";
+import photo1 from "../assets/photo1.jpg";
+import photo2 from "../assets/photo2.jpg";
+import photo3 from "../assets/photo3.jpg";
 
 /**
  * GPL Track — Connexion
@@ -155,8 +159,36 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [currentSlide, setCurrentSlide] = useState(0);
   const navigate = useNavigate();
   const { login } = useAuth();
+  const slides = [
+  {
+    title: "Le suivi de vos stocks, à la racine.",
+    description:
+      "Une vue claire sur toute votre chaîne, ville par ville.",
+    image: photo1,
+  },
+  {
+    title: "Suivez vos mouvements en temps réel.",
+    description:
+      "Consultez facilement vos entrées, sorties et stocks disponibles.",
+    image: photo2,
+  },
+  {
+    title: "Une vision complète de vos activités.",
+    description:
+      "Retrouvez vos consommations et mouvements dans chaque ville.",
+    image: photo3,
+  },
+  ];
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -185,39 +217,122 @@ export default function LoginPage() {
       <style>{theme}</style>
 
       {/* Left branding panel */}
+     
       <div className="leaf-panel hidden md:flex md:w-1/2 flex-col justify-between p-12 text-white">
-        <svg className="leaf-veins" viewBox="0 0 600 800" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M60 780 C60 500 180 260 420 120" stroke="white" strokeWidth="2" />
-          <path d="M100 700 C220 620 300 520 340 420" stroke="white" strokeWidth="1.2" />
-          <path d="M120 600 C240 560 320 480 360 380" stroke="white" strokeWidth="1.2" />
-          <path d="M150 500 C260 470 330 400 370 320" stroke="white" strokeWidth="1.2" />
-          <path d="M180 400 C270 380 330 320 360 260" stroke="white" strokeWidth="1.2" />
-          <circle cx="420" cy="120" r="4" fill="white" />
+
+        {/* Décoration de fond */}
+        <svg
+          className="leaf-veins"
+          viewBox="0 0 600 800"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M60 780 C60 500 180 260 420 120"
+            stroke="white"
+            strokeWidth="2"
+          />
+
+          <path
+            d="M100 700 C220 620 300 520 340 420"
+            stroke="white"
+            strokeWidth="1.2"
+          />
+
+          <path
+            d="M120 600 C240 560 320 480 360 380"
+            stroke="white"
+            strokeWidth="1.2"
+          />
+
+          <path
+            d="M150 500 C260 470 330 400 370 320"
+            stroke="white"
+            strokeWidth="1.2"
+          />
+
+          <path
+            d="M180 400 C270 380 330 320 360 260"
+            stroke="white"
+            strokeWidth="1.2"
+          />
+
+          <circle
+            cx="420"
+            cy="120"
+            r="4"
+            fill="white"
+          />
         </svg>
 
+
+        {/* LOGO + NOM — RESTENT FIXES */}
         <div className="relative flex items-center gap-3">
-          <div className="flex size-11 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 3c-4 3-7 7-7 11a7 7 0 0 0 14 0c0-4-3-8-7-11Z" />
-              <path d="M12 21V10" />
-            </svg>
+
+          <div className="flex size-14 items-center justify-center rounded-xl bg-white shadow-md">
+            <img
+              src={logo}
+              alt="Logo SCDP"
+              className="h-17 w-17 object-contain"
+            />
           </div>
-          <span className="font-heading text-lg font-bold">SCDP Track</span>
+
+          <span className="font-heading text-lg font-bold">
+            Suivi de stocks
+          </span>
+
         </div>
 
-        <div className="relative max-w-sm">
+
+        {/* CARROUSEL */}
+        <div className="relative w-full max-w-xl min-h-[450px]">
+
+          {/* Photo */}
+          <div className="mb-6 overflow-hidden rounded-2xl shadow-lg">
+            <img
+              src={slides[currentSlide].image}
+              alt={slides[currentSlide].title}
+              className="h-80 w-full object-cover"
+            />
+          </div>
+
+          {/* Titre */}
           <h1 className="font-heading text-3xl font-bold leading-tight text-balance">
-            Le suivi de vos stocks GPL, à la racine.
+            {slides[currentSlide].title}
           </h1>
+
+          {/* Description */}
           <p className="mt-4 text-sm text-white/80 leading-relaxed">
-            une vue claire sur toute
-            votre chaîne, ville par ville.
+            {slides[currentSlide].description}
           </p>
+
+          {/* Indicateurs */}
+          <div className="mt-8 flex gap-2">
+
+            {slides.map((_, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={() => setCurrentSlide(index)}
+                className={`h-1.5 rounded-full transition-all ${
+                  currentSlide === index
+                    ? "w-8 bg-white"
+                    : "w-2 bg-white/40"
+                }`}
+                aria-label={`Afficher la slide ${index + 1}`}
+              />
+            ))}
+
+          </div>
+
         </div>
 
+
+        {/* COPYRIGHT — RESTE FIXE */}
         <p className="relative text-xs text-white/60">
-          © 2026 SCDP Track — Espace marketer
+          © 2026 SCDP
         </p>
+
       </div>
 
       {/* Right form panel */}
