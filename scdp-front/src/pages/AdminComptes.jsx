@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { adminApi } from "../api/client";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -78,11 +78,7 @@ export default function AdminComptes() {
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
 
-  useEffect(() => {
-    loadData();
-  }, [roleFilter, searchQuery, page]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const params = { page, limit: 10 };
@@ -119,7 +115,15 @@ export default function AdminComptes() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, roleFilter, searchQuery]);
+
+  useEffect(() => {
+    const loadTimer = window.setTimeout(() => {
+      loadData();
+    }, 0);
+
+    return () => window.clearTimeout(loadTimer);
+  }, [loadData]);
 
   const loadDistributors = async () => {
     try {

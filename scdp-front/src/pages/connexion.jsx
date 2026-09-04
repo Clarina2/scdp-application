@@ -295,7 +295,7 @@ export default function LoginPage() {
             <img
               src={slides[currentSlide].image}
               alt={slides[currentSlide].title}
-              className="h-80 w-full object-cover"
+              className="h-75 w-full object-cover"
             />
           </div>
 

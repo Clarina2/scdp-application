@@ -181,8 +181,6 @@ export default function StockGestionnaireExporter() {
   const [filterDistributorCode, setFilterDistributorCode] = useState("");
   const [filterDepotCode, setFilterDepotCode] = useState("");
   const [filterStatementType, setFilterStatementType] = useState("");
-  const [filterStatementStartDate, setFilterStatementStartDate] = useState("");
-  const [filterStatementEndDate, setFilterStatementEndDate] = useState("");
 
   // Preview & Download state
   const [previewBlobUrl, setPreviewBlobUrl] = useState(null);
@@ -233,21 +231,12 @@ export default function StockGestionnaireExporter() {
         setTotal(0);
         return;
       }
-      if (filterStatementStartDate && filterStatementEndDate && filterStatementStartDate > filterStatementEndDate) {
-        setDocsError("Date début de l'état ne peut pas être après Date fin de l'état.");
-        setDocuments([]);
-        setTotal(0);
-        return;
-      }
-
       const params = { page: pageNum, limit: LIMIT };
       if (filterStartDate) params.start_date = filterStartDate;
       if (filterEndDate) params.end_date = filterEndDate;
       if (filterDistributorCode) params.distributor_code = filterDistributorCode;
       if (filterDepotCode) params.depot_code = filterDepotCode;
       if (filterStatementType) params.statement_type = filterStatementType;
-      if (filterStatementStartDate) params.statement_start_date = filterStatementStartDate;
-      if (filterStatementEndDate) params.statement_end_date = filterStatementEndDate;
 
       const data = await stockGestionnaireApi.getDocuments(params);
       setDocuments(data.items || []);
@@ -259,7 +248,7 @@ export default function StockGestionnaireExporter() {
     } finally {
       setDocsLoading(false);
     }
-  }, [filterStartDate, filterEndDate, filterDistributorCode, filterDepotCode, filterStatementType, filterStatementStartDate, filterStatementEndDate]);
+  }, [filterStartDate, filterEndDate, filterDistributorCode, filterDepotCode, filterStatementType]);
 
   useEffect(() => {
     loadDocuments(page);
@@ -271,8 +260,6 @@ export default function StockGestionnaireExporter() {
     setFilterDistributorCode("");
     setFilterDepotCode("");
     setFilterStatementType("");
-    setFilterStatementStartDate("");
-    setFilterStatementEndDate("");
     setPage(1);
   };
 
@@ -550,9 +537,9 @@ export default function StockGestionnaireExporter() {
 
           <div className="rounded-2xl border border-border bg-muted/30 p-5">
             <div className="mb-4">
-              <h3 className="text-sm font-semibold text-foreground">Informations de l'état</h3>
+              <h3 className="text-sm font-semibold text-foreground">État de stock ajouté</h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                La période correspond aux dates couvertes par l'état PDF.
+                Sélectionnez le type et la période couverte par cet état PDF.
               </p>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -575,7 +562,7 @@ export default function StockGestionnaireExporter() {
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-foreground">
-                  Date début <span className="text-destructive">*</span>
+                  Début période <span className="text-destructive">*</span>
                 </label>
                 <input
                   type="date"
@@ -590,7 +577,7 @@ export default function StockGestionnaireExporter() {
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-foreground">
-                  Date fin <span className="text-destructive">*</span>
+                  Fin période <span className="text-destructive">*</span>
                 </label>
                 <input
                   type="date"
@@ -764,35 +751,6 @@ export default function StockGestionnaireExporter() {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                  Début période
-                </label>
-                <input
-                  type="date"
-                  className="form-input"
-                  value={filterStatementStartDate}
-                  onChange={(e) => {
-                    setFilterStatementStartDate(e.target.value);
-                    setPage(1);
-                  }}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                  Fin période
-                </label>
-                <input
-                  type="date"
-                  className="form-input"
-                  value={filterStatementEndDate}
-                  onChange={(e) => {
-                    setFilterStatementEndDate(e.target.value);
-                    setPage(1);
-                  }}
-                />
-              </div>
             </div>
 
             {/* Reset Filters */}
@@ -800,7 +758,7 @@ export default function StockGestionnaireExporter() {
               <button
                 type="button"
                 onClick={handleResetFilters}
-                disabled={!filterStartDate && !filterEndDate && !filterDistributorCode && !filterDepotCode && !filterStatementType && !filterStatementStartDate && !filterStatementEndDate}
+                disabled={!filterStartDate && !filterEndDate && !filterDistributorCode && !filterDepotCode && !filterStatementType}
                 className="btn-action bg-card text-muted-foreground hover:bg-secondary hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed border border-border"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -860,7 +818,7 @@ export default function StockGestionnaireExporter() {
                           ? "Aucun document ne correspond aux filtres sélectionnés."
                           : "Aucun document enregistré."}
                       </p>
-                      {(filterStartDate || filterEndDate || filterDistributorCode || filterDepotCode || filterStatementType || filterStatementStartDate || filterStatementEndDate) && (
+                      {(filterStartDate || filterEndDate || filterDistributorCode || filterDepotCode || filterStatementType) && (
                         <button
                           type="button"
                           onClick={handleResetFilters}

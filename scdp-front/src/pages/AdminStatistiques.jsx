@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { adminApi, exitsApi, receptionsApi } from "../api/client";
+import { useCallback, useEffect, useState } from "react";
+import { adminApi } from "../api/client";
 
 const theme = `
   :root {
@@ -69,11 +69,12 @@ export default function AdminStatistiques() {
   // Filter state
   const [selectedPeriod, setSelectedPeriod] = useState(periodOptions[0]);
 
-  useEffect(() => {
-    loadStatisticsData();
-  }, [selectedPeriod]);
+  const formatVolume = (num) => {
+    if (num === null || num === undefined) return "0 L";
+    return `${new Intl.NumberFormat('fr-FR').format(Math.round(num))} L`;
+  };
 
-  const loadStatisticsData = async () => {
+  const loadStatisticsData = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
@@ -114,12 +115,15 @@ export default function AdminStatistiques() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedPeriod]);
 
-  const formatVolume = (num) => {
-    if (num === null || num === undefined) return "0 L";
-    return `${new Intl.NumberFormat('fr-FR').format(Math.round(num))} L`;
-  };
+  useEffect(() => {
+    const loadTimer = window.setTimeout(() => {
+      loadStatisticsData();
+    }, 0);
+
+    return () => window.clearTimeout(loadTimer);
+  }, [loadStatisticsData]);
 
   if (loading) {
     return (

@@ -93,6 +93,10 @@ def test_get_documents_stock_gestionnaire(client: TestClient, stock_gestionnaire
     data = res.json()
     assert "items" in data
     assert len(data["items"]) >= 1
+    document = next(item for item in data["items"] if item["id"] == sample_stock_document.id)
+    assert document["statementType"] == "JOURNALIER"
+    assert document["statementStartDate"] == "2021-10-12"
+    assert document["statementEndDate"] == "2022-01-18"
 
 
 def test_get_documents_marketer(client: TestClient, marketer_headers: dict, sample_stock_document):
@@ -101,6 +105,10 @@ def test_get_documents_marketer(client: TestClient, marketer_headers: dict, samp
     assert res.status_code == 200
     data = res.json()
     assert "items" in data
+    document = next(item for item in data["items"] if item["id"] == sample_stock_document.id)
+    assert document["statementType"] == "JOURNALIER"
+    assert document["statementStartDate"] == "2021-10-12"
+    assert document["statementEndDate"] == "2022-01-18"
 
 
 def test_filter_by_statement_type(client: TestClient, stock_gestionnaire_headers: dict, sample_stock_document, sample_monthly_document):

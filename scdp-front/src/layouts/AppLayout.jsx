@@ -1,4 +1,4 @@
-import React from "react";
+import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import AdminSidebar from "../components/AdminSidebar"; // Sidebar Admin
@@ -84,6 +84,11 @@ const theme = `
   .shadow-theme {
     box-shadow: 0 10px 30px -8px var(--shadow-color);
   }
+
+  .scdp-content {
+    transition: margin 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: margin;
+  }
 `;
 
 // export default function AppLayout() {
@@ -100,6 +105,26 @@ const theme = `
 
  export default function AppLayout({ role = "marketer" }) {
   const { viewAsUser } = useAuth();
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarActivity, setSidebarActivity] = useState(0);
+
+  useEffect(() => {
+    if (mobileOpen) {
+      return undefined;
+    }
+
+    const collapseTimer = window.setTimeout(() => {
+      setCollapsed(true);
+    }, 5000);
+
+    return () => window.clearTimeout(collapseTimer);
+  }, [collapsed, mobileOpen, sidebarActivity]);
+
+  const handleSidebarInteraction = () => {
+    setCollapsed(false);
+    setSidebarActivity((value) => value + 1);
+  };
   
   // Determine the effective role for sidebar display
   // If admin is viewing as another user, show that user's sidebar
@@ -114,15 +139,24 @@ const theme = `
 
       {/* Sidebar selon le rôle effectif */}
       {effectiveRole === "ADMIN" ? (
-        <AdminSidebar />
+        <AdminSidebar collapsed={collapsed} onInteraction={handleSidebarInteraction} mobileOpen={mobileOpen} />
       ) : effectiveRole === "STOCK_GESTIONNAIRE" ? (
-        <StockGestionnaireSidebar />
+        <StockGestionnaireSidebar collapsed={collapsed} onInteraction={handleSidebarInteraction} mobileOpen={mobileOpen} />
       ) : (
-        <Sidebar />
+        <Sidebar collapsed={collapsed} onInteraction={handleSidebarInteraction} mobileOpen={mobileOpen} />
       )}
 
       {/* Contenu de la page - add top padding when banner is visible */}
-      <div className="flex-1 overflow-auto ml-72" style={{ paddingTop: viewAsUser ? '4.5rem' : '0' }}>
+      <button
+        type="button"
+        onClick={() => { setMobileOpen((value) => !value); setCollapsed(false); handleSidebarInteraction(); }}
+        className="fixed left-4 top-4 z-40 flex size-10 items-center justify-center rounded-lg border border-border bg-card text-foreground shadow-md md:hidden"
+        aria-label={mobileOpen ? "Fermer le menu" : "Ouvrir le menu"}
+        title={mobileOpen ? "Fermer le menu" : "Ouvrir le menu"}
+      >
+        <span className="text-xl" aria-hidden="true">☰</span>
+      </button>
+      <div className={`scdp-content ml-0 flex-1 overflow-auto ${collapsed ? 'md:ml-20' : 'md:ml-72'} md:block`} style={{ paddingTop: viewAsUser ? '4.5rem' : '0' }}>
         <Outlet />
       </div>
     </div>

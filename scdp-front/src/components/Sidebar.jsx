@@ -1,7 +1,7 @@
 
-import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import logo from "../assets/logo-scdp.png";
 
 const NAV_ITEMS = [
   {
@@ -88,6 +88,17 @@ const sidebarStyles = `
     height: 100vh;
     overflow-y: auto;
     z-index: 50;
+    transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1), transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: width, transform;
+  }
+  .scdp-sidebar.is-mobile-open {
+    transform: translateX(0);
+  }
+  @media (max-width: 767px) {
+    .scdp-sidebar {
+      width: 18rem !important;
+      transform: translateX(-100%);
+    }
   }
 
   .scdp-sidebar .nav-link {
@@ -126,7 +137,7 @@ const sidebarStyles = `
   }
 `;
 
-export default function Sidebar() {
+export default function Sidebar({ collapsed, onInteraction, mobileOpen }) {
   const navigate = useNavigate();
   const { logout } = useAuth();
 
@@ -136,19 +147,20 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="scdp-sidebar w-72 shrink-0 border-r border-border bg-card p-5 flex flex-col min-h-screen">
+    <aside onMouseEnter={onInteraction} onFocus={onInteraction} onClick={onInteraction} className={`scdp-sidebar ${mobileOpen ? "is-mobile-open" : ""} shrink-0 border-r border-border bg-card p-5 flex flex-col min-h-screen`} style={{ width: collapsed ? "5rem" : "18rem" }}>
       <style>{sidebarStyles}</style>
 
       {/* Logo */}
-      <div className="flex items-center gap-3 border-b border-border pb-6">
-        <div className="brand-icon flex size-11 items-center justify-center rounded-xl text-white">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 3c-4 3-7 7-7 11a7 7 0 0 0 14 0c0-4-3-8-7-11Z" />
-            <path d="M12 21V10" />
-          </svg>
-        </div>
-        <div>
-          <p className="font-heading text-lg font-bold tracking-tight">SCDP Track</p>
+      <div className={`flex items-center ${collapsed ? "justify-center" : "gap-3"} border-b border-border pb-6`}>
+        <div className="flex size-14 items-center justify-center rounded-xl bg-white shadow-md">
+                    <img
+                      src={logo}
+                      alt="Logo SCDP"
+                      className="h-17 w-17 object-contain"
+                    />
+          </div>
+        <div className={collapsed ? "hidden" : ""}>
+          <p className="font-heading text-lg font-bold tracking-tight">Suivi de stocks</p>
           <p className="text-xs text-muted-foreground">Espace marketer</p>
         </div>
       </div>
@@ -160,15 +172,15 @@ export default function Sidebar() {
             key={item.path}
             to={item.path}
             className={({ isActive }) =>
-              `nav-link flex min-h-11 items-center gap-3 rounded-lg px-4 text-sm ${
+              `nav-link flex min-h-11 items-center ${collapsed ? "justify-center px-2" : "gap-3 px-4"} rounded-lg text-sm ${
                 isActive
                   ? "is-active bg-primary font-semibold text-primary-foreground"
                   : "font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
               }`
             }
           >
-            <span className="nav-icon">{item.icon}</span>
-            {item.label}
+            <span className="nav-icon" title={collapsed ? item.label : undefined}>{item.icon}</span>
+            <span className={collapsed ? "hidden" : ""}>{item.label}</span>
           </NavLink>
         ))}
       </nav>
@@ -178,7 +190,8 @@ export default function Sidebar() {
         <button
           type="button"
           onClick={handleLogout}
-          className="logout-btn flex w-full min-h-11 items-center gap-3 rounded-lg px-4 text-sm font-semibold text-destructive hover:bg-secondary"
+          className={`logout-btn flex w-full min-h-11 items-center ${collapsed ? "justify-center px-2" : "gap-3 px-4"} rounded-lg text-sm font-semibold text-destructive hover:bg-secondary`}
+          title={collapsed ? "Déconnexion" : undefined}
         >
           <span className="nav-icon">
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -187,7 +200,7 @@ export default function Sidebar() {
               <path d="M21 12H9" />
             </svg>
           </span>
-          Déconnexion
+          <span className={collapsed ? "hidden" : ""}>Déconnexion</span>
         </button>
       </div>
     </aside>
