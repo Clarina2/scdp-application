@@ -90,7 +90,8 @@ const sidebarStyles = `
 
 export default function StockGestionnaireSidebar() {
   const navigate = useNavigate();
-  const { logout, user } = useAuth();
+  const { logout, user, viewAsUser } = useAuth();
+  const displayedUser = viewAsUser || user;
 
   const handleLogout = async () => {
     try {
@@ -123,10 +124,10 @@ export default function StockGestionnaireSidebar() {
       </div>
 
       {/* User Info Badge */}
-      {user && (
+      {displayedUser && (
         <div className="mt-4 p-3 rounded-xl bg-secondary border border-border">
-          <p className="text-xs font-semibold text-foreground truncate">{user.name || user.email}</p>
-          <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>
+          <p className="text-xs font-semibold text-foreground truncate">{displayedUser.name || displayedUser.email}</p>
+          <p className="text-[11px] text-muted-foreground truncate">{displayedUser.email}</p>
         </div>
       )}
 

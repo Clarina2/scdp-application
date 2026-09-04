@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { adminApi } from "../api/client";
+import { useAuth } from "../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const theme = `
   :root {
@@ -45,11 +47,14 @@ const theme = `
 `;
 
 export default function AdminComptes() {
+  const { viewAs } = useAuth();
+  const navigate = useNavigate();
   const [roleFilter, setRoleFilter] = useState("ALL"); // "ALL", "MARKETERS", "STOCK_GESTIONNAIRES", "ADMINS"
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createFormType, setCreateFormType] = useState("STOCK_GESTIONNAIRE"); // "MARKETER", "STOCK_GESTIONNAIRE", or "ADMIN"
+  const [connectingUserId, setConnectingUserId] = useState(null);
   
   // Marketer form state
   const [marketerForm, setMarketerForm] = useState({ distributor_code: "", email: "", phone: "" });
@@ -241,6 +246,34 @@ export default function AdminComptes() {
     }
   };
 
+  const handleConnectAs = async (accountId, accountType) => {
+    if (accountType !== 'MARKETER' && accountType !== 'STOCK_GESTIONNAIRE') {
+      alert("Vous ne pouvez vous connecter qu'en tant que Marketer ou Gestionnaire de stock");
+      return;
+    }
+
+    if (!confirm(`Voulez-vous vraiment vous connecter à l'espace de cet utilisateur ?`)) {
+      return;
+    }
+
+    try {
+      setConnectingUserId(accountId);
+      await viewAs(accountId);
+      
+      // Navigate to the appropriate dashboard based on account type
+      if (accountType === 'MARKETER') {
+        navigate('/tableau');
+      } else if (accountType === 'STOCK_GESTIONNAIRE') {
+        navigate('/stock-gestionnaire/export');
+      }
+    } catch (err) {
+      console.error("Failed to connect as user:", err);
+      alert("Erreur lors de la connexion à l'espace utilisateur");
+    } finally {
+      setConnectingUserId(null);
+    }
+  };
+
   const handleOpenCreateForm = (type) => {
     setCreateFormType(type);
     setMarketerError("");
@@ -403,6 +436,16 @@ export default function AdminComptes() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex gap-2">
+                          {(account.accountType === 'MARKETER' || account.accountType === 'STOCK_GESTIONNAIRE') && account.is_active && (
+                            <button
+                              onClick={() => handleConnectAs(account.id, account.accountType)}
+                              disabled={connectingUserId === account.id}
+                              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition disabled:opacity-50"
+                              title="Se connecter en tant que cet utilisateur"
+                            >
+                              {connectingUserId === account.id ? "Connexion..." : "Connecter"}
+                            </button>
+                          )}
                           <button
                             onClick={() => handleToggleStatus(account.id, account.is_active, account.accountType)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${

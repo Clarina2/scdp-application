@@ -3,6 +3,8 @@ import { Outlet } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import AdminSidebar from "../components/AdminSidebar"; // Sidebar Admin
 import StockGestionnaireSidebar from "../components/StockGestionnaireSidebar"; // Sidebar Stock Gestionnaire
+import ViewAsBanner from "../components/ViewAsBanner";
+import { useAuth } from "../contexts/AuthContext";
 
 // Theme
 
@@ -97,21 +99,30 @@ const theme = `
 // }  
 
  export default function AppLayout({ role = "marketer" }) {
+  const { viewAsUser } = useAuth();
+  
+  // Determine the effective role for sidebar display
+  // If admin is viewing as another user, show that user's sidebar
+  const effectiveRole = viewAsUser ? viewAsUser.role : role;
+
   return (
     <div className="gpl-dashboard min-h-screen w-full flex">
       <style>{theme}</style>
 
-      {/* Sidebar selon le rôle */}
-      {role === "ADMIN" ? (
+      {/* View-As Banner - shown when admin is viewing as another user */}
+      <ViewAsBanner />
+
+      {/* Sidebar selon le rôle effectif */}
+      {effectiveRole === "ADMIN" ? (
         <AdminSidebar />
-      ) : role === "STOCK_GESTIONNAIRE" ? (
+      ) : effectiveRole === "STOCK_GESTIONNAIRE" ? (
         <StockGestionnaireSidebar />
       ) : (
         <Sidebar />
       )}
 
-      {/* Contenu de la page */}
-      <div className="flex-1 overflow-auto ml-72">
+      {/* Contenu de la page - add top padding when banner is visible */}
+      <div className="flex-1 overflow-auto ml-72" style={{ paddingTop: viewAsUser ? '4.5rem' : '0' }}>
         <Outlet />
       </div>
     </div>

@@ -63,9 +63,8 @@ class SynchronizationService:
         run_id = await self.history_logger.start_run()
         logger.info("Starting Synchronization Run #%d for %d tables...", run_id, len(tables_to_sync))
 
-        await self.source_adapter.connect()
-
         try:
+            await self.source_adapter.connect()
             for table_name in tables_to_sync:
                 table_config = SYNC_TABLE_REGISTRY.get(table_name)
                 if not table_config or not table_config.get("sync", True):

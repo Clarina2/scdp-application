@@ -64,6 +64,9 @@ class AuthService:
         if not user:
             raise NotFoundException("No account found for this email address")
 
+        if user.is_active:
+            raise BadRequestException("This account is already active. Use password reset instead.")
+
         # Verify OTP
         await self.otp_service.verify_otp(dto.email, dto.code, OtpType.ACCOUNT_VERIFICATION)
 

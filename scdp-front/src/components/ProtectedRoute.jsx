@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
 const ProtectedRoute = ({ children, role }) => {
-  const { user, loading } = useAuth();
+  const { user, viewAsUser, loading } = useAuth();
 
   if (loading) {
     return (
@@ -18,7 +18,22 @@ const ProtectedRoute = ({ children, role }) => {
   }
 
   // Check role if specified
-  if (role && user.role !== role) {
+  // Admin can access any route when viewing as another user
+  // Or if the route doesn't require a specific role
+  if (!role) {
+    return children;
+  }
+
+  // If user is admin and in view-as mode, check against the view-as role
+  if (user.role === 'ADMIN' && viewAsUser) {
+    if (viewAsUser.role === role) {
+      return children;
+    }
+    return <Navigate to="/" replace />;
+  }
+
+  // Normal role check
+  if (user.role !== role) {
     return <Navigate to="/" replace />;
   }
 

@@ -1,6 +1,7 @@
 
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 const NAV_ITEMS = [
   {
@@ -127,9 +128,10 @@ const sidebarStyles = `
 
 export default function Sidebar() {
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
-  const handleLogout = () => {
-    // Ici tu peux aussi vider le token / localStorage si tu en as
+  const handleLogout = async () => {
+    await logout();
     navigate("/");
   };
 

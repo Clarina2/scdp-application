@@ -1,5 +1,5 @@
 import logging
-import random
+import secrets
 import string
 from datetime import datetime, timedelta
 
@@ -40,7 +40,7 @@ class OtpService:
     @staticmethod
     def _generate_code(length: int = 6) -> str:
         """Generate a secure random 6-digit numeric OTP code."""
-        return "".join(random.choices(string.digits, k=length))
+        return "".join(secrets.choice(string.digits) for _ in range(length))
 
     async def generate_and_send_otp(
         self,

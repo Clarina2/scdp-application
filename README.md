@@ -89,13 +89,13 @@ python main.py
 ```
 Or directly with Uvicorn:
 ```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 3000
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The server starts at `http://localhost:3000/api/v1`.
+The server starts at `http://localhost:8000/api/v1`.
 
 Interactive API documentation:
-* **Swagger UI**: `http://localhost:3000/docs`
+* **Swagger UI**: `http://localhost:8000/docs`
 
 ---
 

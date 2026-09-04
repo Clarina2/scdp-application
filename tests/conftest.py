@@ -98,6 +98,24 @@ async def marketer_user(async_db: AsyncSession) -> User:
         email="marketer_test@scdp.com",
         password_hash=pwd_hash,
         role=Role.MARKETER,
+        distributor_code="AB",
+        is_active=True,
+    )
+    async_db.add(user)
+    await async_db.commit()
+    await async_db.refresh(user)
+    return user
+
+
+@pytest.fixture
+async def stock_gestionnaire_user(async_db: AsyncSession) -> User:
+    """Create stock gestionnaire user fixture."""
+    pwd_hash = bcrypt.hashpw("password123".encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    user = User(
+        name="Stock Gestionnaire Test User",
+        email="stock_gestionnaire_test@scdp.com",
+        password_hash=pwd_hash,
+        role=Role.STOCK_GESTIONNAIRE,
         is_active=True,
     )
     async_db.add(user)
@@ -117,4 +135,11 @@ def admin_headers(admin_user: User) -> dict:
 def marketer_headers(marketer_user: User) -> dict:
     """Authorization headers for Marketer user."""
     token = create_access_token({"sub": marketer_user.id, "email": marketer_user.email, "role": marketer_user.role.value})
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def stock_gestionnaire_headers(stock_gestionnaire_user: User) -> dict:
+    """Authorization headers for Stock Gestionnaire user."""
+    token = create_access_token({"sub": stock_gestionnaire_user.id, "email": stock_gestionnaire_user.email, "role": stock_gestionnaire_user.role.value})
     return {"Authorization": f"Bearer {token}"}

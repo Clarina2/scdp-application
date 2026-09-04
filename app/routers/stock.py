@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.services.stock_service import StockService
-from app.common.decorators.current_user import get_current_user
+from app.common.decorators.current_user import get_current_user, get_effective_user
 from app.models.user import User, Role
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -18,6 +18,7 @@ async def get_stock_service(db: AsyncSession = Depends(get_db)) -> StockService:
 @router.get("/")
 async def get_stock(
     current_user: User = Depends(get_current_user),
+    effective_user: User = Depends(get_effective_user),
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     product_code: Optional[str] = Query(None),
@@ -39,8 +40,8 @@ async def get_stock(
             detail="Forbidden"
         )
     
-    # Marketer scope enforcement
-    distributor_code = current_user.distributor_code if current_user.role == Role.MARKETER else None
+    # Marketer scope enforcement - use effective_user for data scoping
+    distributor_code = effective_user.distributor_code if effective_user.role == Role.MARKETER else None
     
     items, total = await stock_service.find_all(
         page=page,
@@ -194,6 +195,7 @@ async def get_cities(
 @router.get("/by-product")
 async def get_stock_by_product(
     current_user: User = Depends(get_current_user),
+    effective_user: User = Depends(get_effective_user),
     stock_service: StockService = Depends(get_stock_service),
     distributor_code: Optional[str] = Query(None),
     depot_code: Optional[str] = Query(None),
@@ -205,8 +207,8 @@ async def get_stock_by_product(
             detail="Forbidden"
         )
     
-    # Marketer scope enforcement
-    effective_distributor_code = current_user.distributor_code if current_user.role == Role.MARKETER else distributor_code
+    # Marketer scope enforcement - use effective_user for data scoping
+    effective_distributor_code = effective_user.distributor_code if effective_user.role == Role.MARKETER else distributor_code
     
     return await stock_service.get_stock_by_product(
         distributor_code=effective_distributor_code,
@@ -249,6 +251,7 @@ async def get_cities(
 @router.get("/summary")
 async def get_stock_summary(
     current_user: User = Depends(get_current_user),
+    effective_user: User = Depends(get_effective_user),
     stock_service: StockService = Depends(get_stock_service),
     distributor_code: Optional[str] = Query(None),
 ):
@@ -259,8 +262,8 @@ async def get_stock_summary(
             detail="Forbidden"
         )
     
-    # Marketer scope enforcement
-    effective_distributor_code = current_user.distributor_code if current_user.role == Role.MARKETER else distributor_code
+    # Marketer scope enforcement - use effective_user for data scoping
+    effective_distributor_code = effective_user.distributor_code if effective_user.role == Role.MARKETER else distributor_code
     
     _, total_items = await stock_service.find_all(page=1, limit=1, distributor_code=effective_distributor_code)
     regions = await stock_service.get_regions()
@@ -279,6 +282,7 @@ async def get_stock_summary(
 async def get_stock_by_scdp_id(
     scdp_id: str,
     current_user: User = Depends(get_current_user),
+    effective_user: User = Depends(get_effective_user),
     stock_service: StockService = Depends(get_stock_service)
 ):
     """Get a single stock item by its SCDP ID."""
@@ -288,7 +292,11 @@ async def get_stock_by_scdp_id(
             detail="Forbidden"
         )
     
-    item = await stock_service.find_by_scdp_id(scdp_id)
+    distributor_code = None
+    if effective_user.role == Role.MARKETER:
+        distributor_code = effective_user.distributor_code or "__UNASSIGNED__"
+
+    item = await stock_service.find_by_scdp_id(scdp_id, distributor_code=distributor_code)
     if not item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

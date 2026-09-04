@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     # Application
     APP_NAME: str = "SCDP Stock Information Platform"
     APP_ENV: str = "development"
-    APP_PORT: int = 3000
+    APP_PORT: int = 8000
     API_PREFIX: str = "api/v1"
 
     # PostgreSQL Target Database
@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     SYNC_BATCH_SIZE: int = 10000  # Increased from 1000 for better performance with large tables
 
     # Development
-    DEV_SHOW_OTP: bool = True
+    DEV_SHOW_OTP: bool = False
 
     # Document Storage
     DOCUMENT_STORAGE_PATH: str = "uploads/stock_documents"

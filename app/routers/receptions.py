@@ -7,7 +7,7 @@ import io
 
 from app.database import get_db
 from app.services.movement_service import MovementService
-from app.common.decorators.current_user import get_current_user
+from app.common.decorators.current_user import get_current_user, get_effective_user
 from app.models.user import User, Role
 
 router = APIRouter()
@@ -28,14 +28,15 @@ async def get_receptions(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
+    effective_user: User = Depends(get_effective_user),
     movement_service: MovementService = Depends(get_movement_service),
 ):
     """Get paginated list of product receptions (TRECEPTION) with search and filters."""
     if current_user.role not in [Role.ADMIN, Role.MARKETER, Role.STOCK_GESTIONNAIRE]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     
-    # Marketer scope enforcement
-    effective_distributor_code = current_user.distributor_code if current_user.role == Role.MARKETER else distributor_code
+    # Marketer scope enforcement - use effective_user for data scoping
+    effective_distributor_code = effective_user.distributor_code if effective_user.role == Role.MARKETER else distributor_code
     
     items, total = await movement_service.find_receptions(
         page=page,
@@ -136,6 +137,7 @@ async def preview_receptions_export(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
+    effective_user: User = Depends(get_effective_user),
     movement_service: MovementService = Depends(get_movement_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -143,8 +145,8 @@ async def preview_receptions_export(
     if current_user.role not in [Role.ADMIN, Role.MARKETER]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     
-    # Marketer scope enforcement
-    effective_distributor_code = current_user.distributor_code if current_user.role == Role.MARKETER else distributor_code
+    # Marketer scope enforcement - use effective_user for data scoping
+    effective_distributor_code = effective_user.distributor_code if effective_user.role == Role.MARKETER else distributor_code
     
     # Get all matching records (no pagination for export)
     items, total = await movement_service.find_receptions(
@@ -227,14 +229,15 @@ async def export_receptions_csv(
     distributor_code: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
+    effective_user: User = Depends(get_effective_user),
     movement_service: MovementService = Depends(get_movement_service),
 ):
     """Export receptions to CSV with filters applied."""
     if current_user.role not in [Role.ADMIN, Role.MARKETER]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     
-    # Marketer scope enforcement
-    effective_distributor_code = current_user.distributor_code if current_user.role == Role.MARKETER else distributor_code
+    # Marketer scope enforcement - use effective_user for data scoping
+    effective_distributor_code = effective_user.distributor_code if effective_user.role == Role.MARKETER else distributor_code
     
     # Get all matching records (no pagination for export)
     items, total = await movement_service.find_receptions(

@@ -1,13 +1,24 @@
-from datetime import datetime
+﻿from datetime import date, datetime
 from typing import Optional, List, Tuple, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func, or_
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select, func
 
 from app.models.stock_document import StockDocument
 from app.models.scdp import TDepot, TDistributeur
 from app.models.user import User, Role
-from app.common.exceptions.custom import NotFoundException, BadRequestException, ForbiddenException
+from app.common.exceptions.custom import BadRequestException
+
+
+VALID_STATEMENT_TYPES = {"JOURNALIER", "MENSUEL"}
+
+
+def parse_iso_date(value: Optional[str], field_label: str) -> Optional[date]:
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        raise BadRequestException(f"{field_label} doit etre au format YYYY-MM-DD.")
 
 
 class StockDocumentService:
@@ -26,17 +37,27 @@ class StockDocumentService:
         mime_type: str,
         file_size: int,
         document_date: Optional[datetime] = None,
+        statement_type: Optional[str] = None,
+        statement_start_date: Optional[date] = None,
+        statement_end_date: Optional[date] = None,
     ) -> StockDocument:
         """Create and persist a stock document record."""
-        # Verify depot exists
+        if not statement_type:
+            raise BadRequestException("Type d'etat obligatoire.")
+        if statement_type not in VALID_STATEMENT_TYPES:
+            raise BadRequestException("Type d'etat invalide. Valeurs autorisees: JOURNALIER, MENSUEL.")
+        if not statement_start_date or not statement_end_date:
+            raise BadRequestException("Date debut et Date fin de la periode sont obligatoires.")
+        if statement_start_date > statement_end_date:
+            raise BadRequestException("Date debut ne peut pas etre apres Date fin.")
+
         depot_res = await self.db.execute(
             select(TDepot).where(TDepot.code_depot == depot_code)
         )
         depot = depot_res.scalar_one_or_none()
         if not depot:
-            raise BadRequestException(f"Dépôt invalide (code: '{depot_code}')")
+            raise BadRequestException(f"Depot invalide (code: '{depot_code}')")
 
-        # Verify distributor exists
         dist_res = await self.db.execute(
             select(TDistributeur).where(TDistributeur.code_dis == distributor_code)
         )
@@ -53,6 +74,9 @@ class StockDocumentService:
             mime_type=mime_type,
             file_size=file_size,
             document_date=document_date or datetime.utcnow(),
+            statement_type=statement_type,
+            statement_start_date=statement_start_date,
+            statement_end_date=statement_end_date,
         )
 
         self.db.add(doc)
@@ -68,6 +92,9 @@ class StockDocumentService:
         distributor_code: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
+        statement_type: Optional[str] = None,
+        statement_start_date: Optional[str] = None,
+        statement_end_date: Optional[str] = None,
         current_user: Optional[User] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """Find paginated stock documents with JOIN on depot and distributor."""
@@ -85,6 +112,9 @@ class StockDocumentService:
                 StockDocument.mime_type,
                 StockDocument.file_size,
                 StockDocument.document_date,
+                StockDocument.statement_type,
+                StockDocument.statement_start_date,
+                StockDocument.statement_end_date,
                 StockDocument.created_at,
             )
             .outerjoin(TDepot, StockDocument.depot_code == TDepot.code_depot)
@@ -94,7 +124,6 @@ class StockDocumentService:
 
         filters = []
 
-        # Role-based restriction if marketer
         if current_user and current_user.role == Role.MARKETER:
             if current_user.distributor_code:
                 filters.append(StockDocument.distributor_code == current_user.distributor_code)
@@ -106,33 +135,36 @@ class StockDocumentService:
         if depot_code:
             filters.append(StockDocument.depot_code == depot_code)
 
-        # Date filtering on created_at (upload timestamp)
-        if start_date:
-            try:
-                from datetime import datetime
-                start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-                filters.append(StockDocument.created_at >= start_dt)
-            except ValueError:
-                pass
-        if end_date:
-            try:
-                from datetime import datetime
-                end_dt = datetime.strptime(end_date, "%Y-%m-%d")
-                # Include entire end day by setting to 23:59:59.999999
-                end_dt = end_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
-                filters.append(StockDocument.created_at <= end_dt)
-            except ValueError:
-                pass
+        upload_start_day = parse_iso_date(start_date, "Date d'upload debut")
+        upload_end_day = parse_iso_date(end_date, "Date d'upload fin")
+        if upload_start_day and upload_end_day and upload_start_day > upload_end_day:
+            raise BadRequestException("Date d'upload debut ne peut pas etre apres Date d'upload fin.")
+        if upload_start_day:
+            filters.append(StockDocument.created_at >= datetime.combine(upload_start_day, datetime.min.time()))
+        if upload_end_day:
+            filters.append(StockDocument.created_at <= datetime.combine(upload_end_day, datetime.max.time()))
+
+        if statement_type:
+            if statement_type not in VALID_STATEMENT_TYPES:
+                raise BadRequestException("Type d'etat invalide. Valeurs autorisees: JOURNALIER, MENSUEL.")
+            filters.append(StockDocument.statement_type == statement_type)
+
+        statement_start_day = parse_iso_date(statement_start_date, "Date debut de l'etat")
+        statement_end_day = parse_iso_date(statement_end_date, "Date fin de l'etat")
+        if statement_start_day and statement_end_day and statement_start_day > statement_end_day:
+            raise BadRequestException("Date debut de l'etat ne peut pas etre apres Date fin de l'etat.")
+        if statement_start_day:
+            filters.append(StockDocument.statement_end_date >= statement_start_day)
+        if statement_end_day:
+            filters.append(StockDocument.statement_start_date <= statement_end_day)
 
         if filters:
             stmt = stmt.where(*filters)
 
-        # Count total
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total_res = await self.db.execute(count_stmt)
         total = total_res.scalar() or 0
 
-        # Paginate order by created_at DESC
         stmt = stmt.order_by(StockDocument.created_at.desc()).offset((page - 1) * limit).limit(limit)
         res = await self.db.execute(stmt)
         rows = res.fetchall()
@@ -150,6 +182,9 @@ class StockDocumentService:
                 "mimeType": r.mime_type,
                 "fileSize": r.file_size,
                 "documentDate": r.document_date.isoformat() if r.document_date else None,
+                "statementType": r.statement_type,
+                "statementStartDate": r.statement_start_date.isoformat() if r.statement_start_date else None,
+                "statementEndDate": r.statement_end_date.isoformat() if r.statement_end_date else None,
                 "uploadedAt": r.created_at.isoformat() if r.created_at else None,
             }
             for r in rows

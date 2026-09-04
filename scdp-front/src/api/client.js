@@ -3,7 +3,7 @@
  * Handles authentication, token management, and HTTP requests
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1';
 
 class ApiClient {
   constructor() {
@@ -43,10 +43,12 @@ class ApiClient {
     };
 
     try {
+      console.log('[API] Request:', { method: config.method || 'GET', url });
       const response = await fetch(url, config);
       
-      if (response.status === 401) {
+      if (response.status === 401 && endpoint !== '/auth/login') {
         // Unauthorized - clear token and redirect to login
+        console.warn('[API] Unauthorized response, redirecting to login:', { url });
         this.setToken(null);
         window.location.href = '/';
         return;
@@ -54,12 +56,19 @@ class ApiClient {
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ message: 'An error occurred' }));
+        console.error('[API] Request failed:', {
+          method: config.method || 'GET',
+          url,
+          status: response.status,
+          message: error.message || error.detail || 'Request failed',
+        });
         throw new Error(error.message || error.detail || 'Request failed');
       }
 
+      console.log('[API] Request succeeded:', { method: config.method || 'GET', url, status: response.status });
       return await response.json();
     } catch (error) {
-      console.error('API request failed:', error);
+      console.error('[API] Request error:', { method: config.method || 'GET', url, message: error.message });
       throw error;
     }
   }
@@ -414,6 +423,24 @@ export const adminApi = {
   deleteAdmin: async (adminId) => {
     const client = new ApiClient();
     return client.delete(`/admin/admins/${adminId}`);
+  },
+
+  viewAsUser: async (userId) => {
+    const client = new ApiClient();
+    const response = await client.post(`/admin/view-as/${userId}`);
+    if (response.accessToken) {
+      client.setToken(response.accessToken);
+    }
+    return response;
+  },
+
+  exitViewAs: async () => {
+    const client = new ApiClient();
+    const response = await client.post('/admin/exit-view-as');
+    if (response.accessToken) {
+      client.setToken(response.accessToken);
+    }
+    return response;
   },
 };
 

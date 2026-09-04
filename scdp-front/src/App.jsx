@@ -1,4 +1,3 @@
-import React from "react";
 import { Routes, Route } from "react-router-dom";
 
 import LoginPage from "./pages/connexion";
@@ -18,7 +17,6 @@ import ProtectedRoute from "./components/ProtectedRoute";
 
 // Pages Admin
 import AdminDashboard from "./pages/AdminDashboard";
-import AdminMarketers from "./pages/AdminMarketers";
 import AdminStocks from "./pages/AdminStocks";
 import AdminMouvements from "./pages/AdminMouvements";
 import AdminStatistiques from "./pages/AdminStatistiques";

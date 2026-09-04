@@ -5,10 +5,14 @@ from app.services.user_service import UserService
 from app.services.sync_service import SyncService
 from app.common.decorators.current_user import get_current_user
 from app.models.user import User, Role
+from app.models.audit_log import AuditLog
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
+from app.auth.jwt_handler import create_access_token
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class CreateMarketerDto(BaseModel):
@@ -247,6 +251,7 @@ async def list_marketers(
             }
             for item in items
         ],
+        "total": total,
         "meta": {
             "total": total,
             "page": page,
@@ -286,33 +291,34 @@ async def get_admin_dashboard_summary(
     from datetime import datetime, timedelta
 
     stock_conditions = []
-    movement_conditions = []
+    reception_conditions = []
+    exit_conditions = []
 
     # Apply marketer filter
     if marketer_id:
         stock_conditions.append(TStockPhys.code_dis == marketer_id)
-        movement_conditions.append(TReception.code_dis == marketer_id)
-        movement_conditions.append(TSortie.code_dis == marketer_id)
+        reception_conditions.append(TReception.code_dis == marketer_id)
+        exit_conditions.append(TSortie.code_dis == marketer_id)
 
     # Apply depot filter
     if depot_code:
         stock_conditions.append(TStockPhys.code_depot == depot_code)
-        movement_conditions.append(TReception.code_depot == depot_code)
-        movement_conditions.append(TSortie.code_depot == depot_code)
+        reception_conditions.append(TReception.code_depot == depot_code)
+        exit_conditions.append(TSortie.code_depot == depot_code)
 
     # Apply product filter
     if product_code:
         stock_conditions.append(TStockPhys.code_prod == product_code)
-        movement_conditions.append(TReception.code_prod == product_code)
-        movement_conditions.append(TSortie.code_prod == product_code)
+        reception_conditions.append(TReception.code_prod == product_code)
+        exit_conditions.append(TSortie.code_prod == product_code)
 
     # Apply city filter (via depot relationship)
     if city_id:
         from app.models.scdp import TDepot
         depot_subquery = select(TDepot.code_depot).where(TDepot.code_ville == city_id)
         stock_conditions.append(TStockPhys.code_depot.in_(depot_subquery))
-        movement_conditions.append(TReception.code_depot.in_(depot_subquery))
-        movement_conditions.append(TSortie.code_depot.in_(depot_subquery))
+        reception_conditions.append(TReception.code_depot.in_(depot_subquery))
+        exit_conditions.append(TSortie.code_depot.in_(depot_subquery))
 
     # Stock statistics from scdp.tstockphys
     stock_where = and_(*stock_conditions) if stock_conditions else True
@@ -332,8 +338,8 @@ async def get_admin_dashboard_summary(
     current_month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     
     # Build movement date conditions
-    reception_date_conditions = movement_conditions.copy()
-    exit_date_conditions = movement_conditions.copy()
+    reception_date_conditions = reception_conditions.copy()
+    exit_date_conditions = exit_conditions.copy()
     
     # Add date-specific conditions
     if start_date or end_date:
@@ -422,8 +428,8 @@ async def get_admin_dashboard_summary(
     )
     
     # Apply movement filters to recent receptions
-    if movement_conditions:
-        recent_receptions_query = recent_receptions_query.where(and_(*movement_conditions))
+    if reception_conditions:
+        recent_receptions_query = recent_receptions_query.where(and_(*reception_conditions))
     
     # Only apply date filters to recent movements if explicitly provided
     if start_date:
@@ -451,8 +457,8 @@ async def get_admin_dashboard_summary(
     )
     
     # Apply movement filters to recent exits
-    if movement_conditions:
-        recent_exits_query = recent_exits_query.where(and_(*movement_conditions))
+    if exit_conditions:
+        recent_exits_query = recent_exits_query.where(and_(*exit_conditions))
     
     # Only apply date filters to recent movements if explicitly provided
     if start_date:
@@ -517,7 +523,8 @@ async def get_admin_dashboard_summary(
         "monthlyConsumption": monthly_exits,  # Assuming consumption = exits for now
         "lastSync": last_sync,
         "topMarketers": top_marketers,
-        "recentMovements": recent_movements
+        "recentMovements": recent_movements,
+            "total": total_marketers  # Added total for consistency
     }
 
 
@@ -670,8 +677,9 @@ async def create_admin_with_otp(
     
     # Send OTP for activation
     from app.services.otp_service import OtpService
+    from app.services.email_service import EmailService
     from app.models.otp import OtpType
-    otp_service = OtpService(db)
+    otp_service = OtpService(db, email_service=EmailService())
     await otp_service.generate_and_send_otp(dto.email, OtpType.ACCOUNT_VERIFICATION)
     
     return {
@@ -718,6 +726,7 @@ async def list_admins(
             }
             for item in items
         ],
+        "total": total,
         "meta": {
             "total": total,
             "page": page,
@@ -742,6 +751,9 @@ async def update_admin_status(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Forbidden (Admin only)"
         )
+
+    if admin_id == current_user.id and not dto.isActive:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot deactivate the current administrator")
     
     user = await user_service.update_admin_status(admin_id, dto.isActive)
     
@@ -766,6 +778,9 @@ async def delete_admin(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Forbidden (Admin only)"
         )
+
+    if admin_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete the current administrator")
     
     await user_service.delete_admin(admin_id)
     
@@ -1044,3 +1059,147 @@ async def get_depot_stock_statistics(
     ]
     
     return response
+
+
+# View-As User Context APIs
+@router.post("/view-as/{user_id}")
+async def view_as_user(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service),
+    db: AsyncSession = Depends(get_db)
+):
+    """Allow Admin to view the application as a specific Marketer or Stock Gestionnaire."""
+    if current_user.role != Role.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden (Admin only)"
+        )
+    
+    # Get target user
+    target_user = await user_service.find_by_id(user_id)
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Target user not found"
+        )
+    
+    # Validate target user role
+    if target_user.role not in [Role.MARKETER, Role.STOCK_GESTIONNAIRE]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Can only view as Marketer or Stock Gestionnaire"
+        )
+    
+    # Validate target user is active
+    if not target_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Target user account is not active"
+        )
+    
+    # Log the view-as action to audit log
+    audit_log = AuditLog(
+        user_id=current_user.id,
+        action="VIEW_AS_USER",
+        entity_type="User",
+        entity_id=target_user.id,
+        metadata_info={
+            "admin_email": current_user.email,
+            "admin_name": current_user.name,
+            "target_user_email": target_user.email,
+            "target_user_name": target_user.name,
+            "target_user_role": target_user.role.value,
+            "target_user_distributor_code": target_user.distributor_code
+        }
+    )
+    db.add(audit_log)
+    await db.commit()
+    
+    # Also log to application logger
+    logger.info(
+        f"Admin {current_user.email} (ID: {current_user.id}) is viewing as "
+        f"{target_user.role.value} {target_user.email} (ID: {target_user.id})"
+    )
+    
+    # Create new token with view-as context
+    # The real admin identity is preserved in the token, but we add view-as context
+    payload = {
+        "sub": current_user.id,  # Real admin ID
+        "email": current_user.email,
+        "role": current_user.role.value,  # Real admin role
+        "view_as_user_id": target_user.id,  # Target user ID
+        "view_as_role": target_user.role.value,  # Target user role
+        "view_as_email": target_user.email,
+        "view_as_name": target_user.name,
+    }
+    
+    access_token = create_access_token(payload)
+    
+    return {
+        "accessToken": access_token,
+        "viewAsUser": {
+            "id": target_user.id,
+            "name": target_user.name,
+            "email": target_user.email,
+            "role": target_user.role.value,
+            "distributor_code": target_user.distributor_code
+        },
+        "realAdmin": {
+            "id": current_user.id,
+            "name": current_user.name,
+            "email": current_user.email
+        }
+    }
+
+
+@router.post("/exit-view-as")
+async def exit_view_as(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Exit view-as mode and return to Admin context."""
+    # This endpoint can be called regardless of view-as state
+    # It will issue a clean admin token
+    
+    if current_user.role != Role.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden (Admin only)"
+        )
+    
+    # Log the exit action to audit log
+    audit_log = AuditLog(
+        user_id=current_user.id,
+        action="EXIT_VIEW_AS",
+        entity_type="User",
+        entity_id=current_user.id,
+        metadata_info={
+            "admin_email": current_user.email,
+            "admin_name": current_user.name
+        }
+    )
+    db.add(audit_log)
+    await db.commit()
+    
+    # Also log to application logger
+    logger.info(f"Admin {current_user.email} (ID: {current_user.id}) exited view-as mode")
+    
+    # Create clean admin token without view-as context
+    payload = {
+        "sub": current_user.id,
+        "email": current_user.email,
+        "role": current_user.role.value,
+    }
+    
+    access_token = create_access_token(payload)
+    
+    return {
+        "accessToken": access_token,
+        "user": {
+            "id": current_user.id,
+            "name": current_user.name,
+            "email": current_user.email,
+            "role": current_user.role.value
+        }
+    }

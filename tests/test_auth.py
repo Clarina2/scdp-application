@@ -12,6 +12,7 @@ Tests authentication endpoints:
 import pytest
 from fastapi.testclient import TestClient
 from app.models.user import User
+from app.auth.jwt_handler import create_access_token
 
 
 def test_login_success(client: TestClient, marketer_user: User):
@@ -29,6 +30,19 @@ def test_login_invalid_password(client: TestClient, marketer_user: User):
     res = client.post(
         "/api/v1/auth/login",
         json={"email": "marketer_test@scdp.com", "password": "wrongpassword"},
+    )
+    assert res.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_inactive_user_token_is_rejected(client: TestClient, marketer_user: User, async_db):
+    marketer_user.is_active = False
+    async_db.add(marketer_user)
+    await async_db.commit()
+
+    res = client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {create_access_token({'sub': marketer_user.id, 'email': marketer_user.email, 'role': marketer_user.role.value})}"},
     )
     assert res.status_code == 401
 

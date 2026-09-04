@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { authApi } from "../api/client";
+import { authApi, adminApi } from "../api/client";
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [viewAsUser, setViewAsUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -16,6 +17,7 @@ export const AuthProvider = ({ children }) => {
     const userName = localStorage.getItem('userName');
     const userEmail = localStorage.getItem('userEmail');
     const userRole = localStorage.getItem('userRole');
+    const viewAsData = localStorage.getItem('viewAsUser');
 
     if (token && userName) {
       setUser({
@@ -23,6 +25,16 @@ export const AuthProvider = ({ children }) => {
         email: userEmail,
         role: userRole,
       });
+      
+      // Restore view-as context if present
+      if (viewAsData) {
+        try {
+          setViewAsUser(JSON.parse(viewAsData));
+        } catch (e) {
+          console.error('Failed to parse view-as data:', e);
+          localStorage.removeItem('viewAsUser');
+        }
+      }
     }
     setLoading(false);
   };
@@ -49,15 +61,47 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('userName');
     localStorage.removeItem('userEmail');
     localStorage.removeItem('userRole');
+    localStorage.removeItem('viewAsUser');
     setUser(null);
+    setViewAsUser(null);
   };
 
   const changePassword = async (oldPassword, newPassword) => {
     return await authApi.changePassword(oldPassword, newPassword);
   };
 
+  const viewAs = async (userId) => {
+    const response = await adminApi.viewAsUser(userId);
+    
+    // Store view-as context
+    localStorage.setItem('viewAsUser', JSON.stringify(response.viewAsUser));
+    setViewAsUser(response.viewAsUser);
+    
+    return response;
+  };
+
+  const exitViewAs = async () => {
+    const response = await adminApi.exitViewAs();
+    
+    // Clear view-as context
+    localStorage.removeItem('viewAsUser');
+    setViewAsUser(null);
+    
+    return response;
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, changePassword, checkAuth }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      viewAsUser, 
+      loading, 
+      login, 
+      logout, 
+      changePassword, 
+      checkAuth,
+      viewAs,
+      exitViewAs
+    }}>
       {children}
     </AuthContext.Provider>
   );

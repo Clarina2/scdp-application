@@ -43,7 +43,9 @@ async def lifespan(app: FastAPI):
                 text("""
                 DO $$ BEGIN
                     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'role') THEN
-                        CREATE TYPE role AS ENUM ('ADMIN', 'MARKETER');
+                        CREATE TYPE role AS ENUM ('ADMIN', 'MARKETER', 'STOCK_GESTIONNAIRE');
+                    ELSE
+                        ALTER TYPE role ADD VALUE IF NOT EXISTS 'STOCK_GESTIONNAIRE';
                     END IF;
                     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'syncstatus') THEN
                         CREATE TYPE syncstatus AS ENUM ('RUNNING', 'SUCCESS', 'FAILED', 'PARTIAL');

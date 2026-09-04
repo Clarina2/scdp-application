@@ -63,11 +63,17 @@ class StockService:
         
         return list(items), total
 
-    async def find_by_scdp_id(self, scdp_id: str) -> Optional[TStockPhys]:
+    async def find_by_scdp_id(
+        self, scdp_id: str, distributor_code: Optional[str] = None
+    ) -> Optional[TStockPhys]:
         """Find stock item by SCDP ID."""
-        result = await self.db.execute(
-            select(TStockPhys).where(TStockPhys.id_pcfp_stk_phys_jour == int(scdp_id))
-        )
+        conditions = [TStockPhys.id_pcfp_stk_phys_jour == int(scdp_id)]
+        if distributor_code:
+            conditions.append(TStockPhys.code_dis == distributor_code)
+        elif distributor_code == "__UNASSIGNED__":
+            return None
+
+        result = await self.db.execute(select(TStockPhys).where(*conditions))
         return result.scalar_one_or_none()
 
     async def get_regions(self) -> List[dict]:

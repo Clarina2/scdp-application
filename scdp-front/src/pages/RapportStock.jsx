@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+﻿import React, { useState, useEffect, useCallback } from "react";
 import { stockGestionnaireApi } from "../api/client";
 
 const theme = `
@@ -127,10 +127,10 @@ const theme = `
 `;
 
 function formatDisplayDate(isoStr) {
-  if (!isoStr) return "—";
+  if (!isoStr) return "-";
   try {
     const d = new Date(isoStr);
-    if (isNaN(d.getTime())) return "—";
+    if (isNaN(d.getTime())) return "-";
     const datePart = d.toLocaleDateString("fr-FR", {
       day: "2-digit",
       month: "2-digit",
@@ -142,7 +142,7 @@ function formatDisplayDate(isoStr) {
     });
     return `${datePart} ${timePart}`;
   } catch {
-    return "—";
+    return "-";
   }
 }
 
@@ -151,6 +151,26 @@ function formatFileSize(bytes) {
   const kb = bytes / 1024;
   if (kb < 1024) return `${kb.toFixed(1)} Ko`;
   return `${(kb / 1024).toFixed(1)} Mo`;
+}
+
+function formatDateOnly(isoStr) {
+  if (!isoStr) return "-";
+  try {
+    const [year, month, day] = String(isoStr).split("T")[0].split("-").map(Number);
+    const d = new Date(year, month - 1, day);
+    return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  } catch { return "-"; }
+}
+
+function formatStatementType(type) {
+  if (type === "JOURNALIER") return "Journalier";
+  if (type === "MENSUEL") return "Mensuel";
+  return "-";
+}
+
+function formatStatementPeriod(start, end) {
+  if (!start || !end) return "-";
+  return `${formatDateOnly(start)} → ${formatDateOnly(end)}`;
 }
 
 export default function RapportStock() {
@@ -166,6 +186,9 @@ export default function RapportStock() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [selectedDepot, setSelectedDepot] = useState("");
+  const [statementType, setStatementType] = useState("");
+  const [statementStartDate, setStatementStartDate] = useState("");
+  const [statementEndDate, setStatementEndDate] = useState("");
 
   // Preview modal state
   const [previewBlobUrl, setPreviewBlobUrl] = useState(null);
@@ -175,7 +198,7 @@ export default function RapportStock() {
 
   const LIMIT = 10;
 
-  // ── Load Available Depots ──────────────────────────────────────────────────
+  // â”€â”€ Load Available Depots â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     let active = true;
     async function fetchDepots() {
@@ -185,7 +208,7 @@ export default function RapportStock() {
           setDepots(data || []);
         }
       } catch (err) {
-        console.error("Erreur lors du chargement des dépôts:", err);
+        console.error("Erreur lors du chargement des dÃ©pÃ´ts:", err);
       }
     }
     fetchDepots();
@@ -194,16 +217,34 @@ export default function RapportStock() {
     };
   }, []);
 
-  // ── Load Stock Reports ──────────────────────────────────────────────────────
+  // â”€â”€ Load Stock Reports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const loadReports = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
 
+      if (statementStartDate && statementEndDate && statementStartDate > statementEndDate) {
+        setError("Date début de l'état ne peut pas être après Date fin de l'état.");
+        setReports([]);
+        setTotal(0);
+        setTotalPages(1);
+        return;
+      }
+      if (startDate && endDate && startDate > endDate) {
+        setError("Date d'upload début ne peut pas être après Date d'upload fin.");
+        setReports([]);
+        setTotal(0);
+        setTotalPages(1);
+        return;
+      }
+
       const params = { page, limit: LIMIT };
       if (startDate) params.start_date = startDate;
       if (endDate) params.end_date = endDate;
       if (selectedDepot) params.depot_code = selectedDepot;
+      if (statementType) params.statement_type = statementType;
+      if (statementStartDate) params.statement_start_date = statementStartDate;
+      if (statementEndDate) params.statement_end_date = statementEndDate;
 
       const response = await stockGestionnaireApi.getDocuments(params);
       const items = response.items || [];
@@ -222,21 +263,24 @@ export default function RapportStock() {
     } finally {
       setLoading(false);
     }
-  }, [page, startDate, endDate, selectedDepot]);
+  }, [page, startDate, endDate, selectedDepot, statementType, statementStartDate, statementEndDate]);
 
   useEffect(() => {
     loadReports();
   }, [loadReports]);
 
-  // ── Reset Filters ───────────────────────────────────────────────────────────
+  // â”€â”€ Reset Filters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleResetFilters = () => {
     setStartDate("");
     setEndDate("");
     setSelectedDepot("");
+    setStatementType("");
+    setStatementStartDate("");
+    setStatementEndDate("");
     setPage(1);
   };
 
-  // ── Preview PDF ─────────────────────────────────────────────────────────────
+  // â”€â”€ Preview PDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleOpenPreview = async (report) => {
     try {
       setPreviewLoading(true);
@@ -268,7 +312,7 @@ export default function RapportStock() {
     setPreviewDocument(null);
   };
 
-  // ── Download PDF ────────────────────────────────────────────────────────────
+  // â”€â”€ Download PDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleDownload = async (report) => {
     try {
       setDownloadingId(report.id);
@@ -282,14 +326,14 @@ export default function RapportStock() {
     }
   };
 
-  const hasActiveFilters = Boolean(startDate || endDate || selectedDepot);
+  const hasActiveFilters = Boolean(startDate || endDate || selectedDepot || statementType || statementStartDate || statementEndDate);
 
   return (
     <div className="gpl-dashboard min-h-screen w-full">
       <style>{theme}</style>
 
       <main className="p-6 md:p-8 lg:p-10 space-y-6 max-w-[1600px] mx-auto">
-        {/* ── Page Header ────────────────────────────────────────────────────── */}
+        {/* â”€â”€ Page Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-6">
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
@@ -320,7 +364,7 @@ export default function RapportStock() {
           </div>
         </header>
 
-        {/* ── Error Banner ───────────────────────────────────────────────────── */}
+        {/* â”€â”€ Error Banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {error && (
           <div className="flex items-center justify-between rounded-xl bg-destructive/10 border border-destructive/20 p-4 text-sm text-destructive">
             <div className="flex items-center gap-2">
@@ -341,44 +385,101 @@ export default function RapportStock() {
           </div>
         )}
 
-        {/* ── Filters Section ─────────────────────────────────────────────────── */}
+        {/* Filters Section */}
         <section className="rounded-2xl border border-border bg-card p-5 shadow-soft">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end justify-between">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
-              {/* Date début */}
-              <div>
+          <div className="flex flex-col gap-5">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_2fr_2fr_1.5fr]">
+              <fieldset className="space-y-2">
+                <legend className="text-xs font-semibold uppercase tracking-wider text-primary">Type d'état</legend>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                  Date début
+                  Type
                 </label>
-                <input
-                  type="date"
+                <select
                   className="form-input"
-                  value={startDate}
+                  value={statementType}
                   onChange={(e) => {
-                    setStartDate(e.target.value);
+                    setStatementType(e.target.value);
                     setPage(1);
                   }}
-                />
-              </div>
+                >
+                  <option value="">Tous</option>
+                  <option value="JOURNALIER">État journalier</option>
+                  <option value="MENSUEL">État mensuel</option>
+                </select>
+              </fieldset>
 
-              {/* Date fin */}
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                  Date fin
-                </label>
-                <input
-                  type="date"
-                  className="form-input"
-                  value={endDate}
-                  onChange={(e) => {
-                    setEndDate(e.target.value);
-                    setPage(1);
-                  }}
-                />
-              </div>
+              <fieldset className="space-y-2">
+                <legend className="text-xs font-semibold uppercase tracking-wider text-primary">Période de l'état</legend>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                      Date début
+                    </label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={statementStartDate}
+                      onChange={(e) => {
+                        setStatementStartDate(e.target.value);
+                        setPage(1);
+                      }}
+                    />
+                  </div>
 
-              {/* Dépôt concerné */}
-              <div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                      Date fin
+                    </label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={statementEndDate}
+                      onChange={(e) => {
+                        setStatementEndDate(e.target.value);
+                        setPage(1);
+                      }}
+                    />
+                  </div>
+                </div>
+              </fieldset>
+
+              <fieldset className="space-y-2">
+                <legend className="text-xs font-semibold uppercase tracking-wider text-primary">Date d'upload</legend>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                      Upload du
+                    </label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={startDate}
+                      onChange={(e) => {
+                        setStartDate(e.target.value);
+                        setPage(1);
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                      Upload au
+                    </label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={endDate}
+                      onChange={(e) => {
+                        setEndDate(e.target.value);
+                        setPage(1);
+                      }}
+                    />
+                  </div>
+                </div>
+              </fieldset>
+
+              <fieldset className="space-y-2">
+                <legend className="text-xs font-semibold uppercase tracking-wider text-primary">Filtres existants</legend>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
                   Dépôt concerné
                 </label>
@@ -397,11 +498,10 @@ export default function RapportStock() {
                     </option>
                   ))}
                 </select>
-              </div>
+              </fieldset>
             </div>
 
-            {/* Reset Filters */}
-            <div className="flex items-center gap-2 shrink-0 pt-2 lg:pt-0">
+            <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={handleResetFilters}
@@ -418,22 +518,25 @@ export default function RapportStock() {
           </div>
         </section>
 
-        {/* ── Table Section ──────────────────────────────────────────────────── */}
+        {/* â”€â”€ Table Section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <section className="rounded-2xl border border-border bg-card shadow-soft overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted/70 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-border">
                 <tr>
-                  <th className="px-6 py-4">Date</th>
+                  <th className="px-6 py-4">Date d'upload</th>
                   <th className="px-6 py-4">Dépôt concerné</th>
-                  <th className="px-6 py-4">PDF</th>
+                  <th className="px-6 py-4">État</th>
+                  <th className="px-6 py-4">Date début</th>
+                  <th className="px-6 py-4">Date fin</th>
+                  <th className="px-6 py-4">Document</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {loading ? (
                   <tr>
-                    <td colSpan="4" className="px-6 py-12 text-center text-muted-foreground">
+                    <td colSpan="7" className="px-6 py-12 text-center text-muted-foreground">
                       <div className="flex flex-col items-center justify-center gap-3">
                         <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
                         <p className="font-medium">Chargement des rapports de stock...</p>
@@ -442,7 +545,7 @@ export default function RapportStock() {
                   </tr>
                 ) : reports.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="px-6 py-12 text-center text-muted-foreground">
+                    <td colSpan="7" className="px-6 py-12 text-center text-muted-foreground">
                       <div className="flex flex-col items-center justify-center gap-3">
                         <div className="flex size-12 items-center justify-center rounded-2xl bg-secondary text-primary">
                           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -472,7 +575,7 @@ export default function RapportStock() {
                 ) : (
                   reports.map((report) => (
                     <tr key={report.id} className="table-row">
-                      {/* Date */}
+                      {/* Date d'upload */}
                       <td className="px-6 py-4 font-medium text-foreground whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
@@ -495,6 +598,23 @@ export default function RapportStock() {
                             {report.depotName || report.depotCode}
                           </span>
                         </div>
+                      </td>
+
+                      {/* Type d'état */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="inline-flex items-center rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-primary">
+                          {formatStatementType(report.statementType)}
+                        </span>
+                      </td>
+
+                      {/* Date début */}
+                      <td className="px-6 py-4 whitespace-nowrap text-xs text-muted-foreground">
+                        {formatDateOnly(report.statementStartDate)}
+                      </td>
+
+                      {/* Date fin */}
+                      <td className="px-6 py-4 whitespace-nowrap text-xs text-muted-foreground">
+                        {formatDateOnly(report.statementEndDate)}
                       </td>
 
                       {/* PDF */}
@@ -520,7 +640,7 @@ export default function RapportStock() {
                       {/* Actions */}
                       <td className="px-6 py-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-2">
-                          {/* Aperçu (Preview) */}
+                          {/* Aperçu */}
                           <button
                             type="button"
                             onClick={() => handleOpenPreview(report)}
@@ -534,7 +654,7 @@ export default function RapportStock() {
                             Aperçu
                           </button>
 
-                          {/* Télécharger (Download) */}
+                          {/* Télécharger */}
                           <button
                             type="button"
                             onClick={() => handleDownload(report)}
@@ -567,7 +687,7 @@ export default function RapportStock() {
             </table>
           </div>
 
-          {/* ── Pagination ───────────────────────────────────────────────────── */}
+          {/* â”€â”€ Pagination â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {totalPages > 1 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border px-6 py-4">
               <p className="text-xs text-muted-foreground">
@@ -604,7 +724,7 @@ export default function RapportStock() {
         </section>
       </main>
 
-      {/* ── Preview Modal ────────────────────────────────────────────────────── */}
+      {/* â”€â”€ Preview Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {(previewDocument || previewLoading) && (
         <div className="modal-overlay" onClick={handleClosePreview}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -622,7 +742,7 @@ export default function RapportStock() {
                     {previewDocument?.fileName || "Aperçu du document PDF"}
                   </h2>
                   <p className="text-xs text-muted-foreground">
-                    Dépôt: {previewDocument?.depotName || previewDocument?.depotCode} • Transmis le {formatDisplayDate(previewDocument?.uploadedAt)}
+                    Dépôt: {previewDocument?.depotName || previewDocument?.depotCode} · Transmis le {formatDisplayDate(previewDocument?.uploadedAt)}
                   </p>
                 </div>
               </div>
@@ -648,7 +768,7 @@ export default function RapportStock() {
                   className="flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition"
                   title="Fermer"
                 >
-                  ✕
+                  âœ•
                 </button>
               </div>
             </div>
@@ -678,3 +798,4 @@ export default function RapportStock() {
     </div>
   );
 }
+
