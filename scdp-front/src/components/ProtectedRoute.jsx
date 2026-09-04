@@ -1,9 +1,13 @@
-import React from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { DEMO_MODE } from "../config/demo";
 
 const ProtectedRoute = ({ children, role }) => {
   const { user, viewAsUser, loading } = useAuth();
+
+  if (DEMO_MODE) {
+    return children;
+  }
 
   if (loading) {
     return (

@@ -196,8 +196,9 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await login(email, password);
-      console.log('[AUTH] Login succeeded:', { email, role: response.user?.role });
+      const normalizedEmail = email.trim().toLowerCase();
+      const response = await login(normalizedEmail, password);
+      console.log('[AUTH] Login succeeded:', { email: normalizedEmail, role: response.user?.role });
       // Redirect based on user role
       if (response.user.role === 'ADMIN') {
         navigate('/admin');
@@ -208,7 +209,7 @@ export default function LoginPage() {
       }
     } catch (err) {
       const message = err.message || "Échec de la connexion. Vérifiez vos identifiants.";
-      console.error('[AUTH] Login failed:', { email, message });
+      console.error('[AUTH] Login failed:', { email: email.trim().toLowerCase(), message });
       setError(message);
     } finally {
       setLoading(false);

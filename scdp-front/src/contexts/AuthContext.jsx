@@ -1,18 +1,21 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { authApi, adminApi } from "../api/client";
+import { DEMO_MODE, DEMO_USER } from "../config/demo";
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(DEMO_MODE ? DEMO_USER : null);
   const [viewAsUser, setViewAsUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
+  const checkAuth = useCallback(() => {
+    if (DEMO_MODE) {
+      setUser(DEMO_USER);
+      setLoading(false);
+      return;
+    }
 
-  const checkAuth = () => {
     const token = localStorage.getItem('accessToken');
     const userName = localStorage.getItem('userName');
     const userEmail = localStorage.getItem('userEmail');
@@ -37,7 +40,15 @@ export const AuthProvider = ({ children }) => {
       }
     }
     setLoading(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    const authTimer = window.setTimeout(() => {
+      checkAuth();
+    }, 0);
+
+    return () => window.clearTimeout(authTimer);
+  }, [checkAuth]);
 
   const login = async (email, password) => {
     const response = await authApi.login(email, password);
@@ -57,6 +68,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    if (DEMO_MODE) {
+      return;
+    }
+
     localStorage.removeItem('accessToken');
     localStorage.removeItem('userName');
     localStorage.removeItem('userEmail');

@@ -3,7 +3,10 @@
  * Handles authentication, token management, and HTTP requests
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1';
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+  || `${window.location.protocol}//${window.location.hostname}:8000/api/v1`;
 
 class ApiClient {
   constructor() {
@@ -46,7 +49,7 @@ class ApiClient {
       console.log('[API] Request:', { method: config.method || 'GET', url });
       const response = await fetch(url, config);
       
-      if (response.status === 401 && endpoint !== '/auth/login') {
+      if (response.status === 401 && endpoint !== '/auth/login' && !DEMO_MODE) {
         // Unauthorized - clear token and redirect to login
         console.warn('[API] Unauthorized response, redirecting to login:', { url });
         this.setToken(null);

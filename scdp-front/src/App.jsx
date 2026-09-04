@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Navigate, Routes, Route } from "react-router-dom";
 
 import LoginPage from "./pages/connexion";
 import SortiesGPL from "./pages/sorties";
@@ -27,7 +27,7 @@ import AdminParametres from "./pages/AdminParametres";
 import StockGestionnaireExporter from "./pages/StockGestionnaireExporter";
 import StockGestionnaireProfil from "./pages/StockGestionnaireProfil";
 import StockGestionnaireParametres from "./pages/StockGestionnaireParametres";
-import { Navigate } from "react-router-dom";
+import { DEMO_MODE } from "./config/demo";
 
 function App() {
   return (
@@ -35,7 +35,7 @@ function App() {
       <div className="App">
         <Routes>
           {/* Page de connexion (sans sidebar) */}
-          <Route path="/" element={<LoginPage />} />
+          <Route path="/" element={DEMO_MODE ? <Navigate to="/tableau" replace /> : <LoginPage />} />
           <Route path="/connexion" element={<LoginPage />} />
           <Route path="/nouveaupassword" element={<ChangerMotDePasse />} />
           <Route path="/activate-marketer" element={<ActivateMarketer />} />

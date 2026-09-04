@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { adminApi } from "../api/client";
 import { useAuth } from "../contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
 
 const theme = `
   :root {
@@ -48,7 +47,6 @@ const theme = `
 
 export default function AdminComptes() {
   const { viewAs } = useAuth();
-  const navigate = useNavigate();
   const [roleFilter, setRoleFilter] = useState("ALL"); // "ALL", "MARKETERS", "STOCK_GESTIONNAIRES", "ADMINS"
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -265,11 +263,12 @@ export default function AdminComptes() {
       await viewAs(accountId);
       
       // Navigate to the appropriate dashboard based on account type
-      if (accountType === 'MARKETER') {
-        navigate('/tableau');
-      } else if (accountType === 'STOCK_GESTIONNAIRE') {
-        navigate('/stock-gestionnaire/export');
-      }
+      const targetPath = accountType === 'MARKETER'
+        ? '/tableau'
+        : '/stock-gestionnaire/export';
+
+      // Reload after persisting the view-as context so ProtectedRoute starts with it hydrated.
+      window.location.assign(targetPath);
     } catch (err) {
       console.error("Failed to connect as user:", err);
       alert("Erreur lors de la connexion à l'espace utilisateur");
